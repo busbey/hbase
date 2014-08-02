@@ -35,7 +35,7 @@ import org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALTrailer;
 import org.apache.hadoop.hbase.util.FSUtils;
 
 @InterfaceAudience.LimitedPrivate({HBaseInterfaceAudience.COPROC, HBaseInterfaceAudience.PHOENIX})
-public abstract class ReaderBase implements HLog.Reader {
+public abstract class ReaderBase implements WAL.Reader {
   private static final Log LOG = LogFactory.getLog(ReaderBase.class);
   protected Configuration conf;
   protected FileSystem fs;
@@ -65,8 +65,8 @@ public abstract class ReaderBase implements HLog.Reader {
     this.path = path;
     this.fs = fs;
     this.fileLength = this.fs.getFileStatus(path).getLen();
-    this.trailerWarnSize = conf.getInt(HLog.WAL_TRAILER_WARN_SIZE,
-      HLog.DEFAULT_WAL_TRAILER_WARN_SIZE);
+    this.trailerWarnSize = conf.getInt(WAL.WAL_TRAILER_WARN_SIZE,
+      WAL.DEFAULT_WAL_TRAILER_WARN_SIZE);
     String cellCodecClsName = initReader(stream);
 
     boolean compression = hasCompression();
@@ -87,15 +87,15 @@ public abstract class ReaderBase implements HLog.Reader {
   }
 
   @Override
-  public HLog.Entry next() throws IOException {
+  public WAL.Entry next() throws IOException {
     return next(null);
   }
 
   @Override
-  public HLog.Entry next(HLog.Entry reuse) throws IOException {
-    HLog.Entry e = reuse;
+  public WAL.Entry next(WAL.Entry reuse) throws IOException {
+    WAL.Entry e = reuse;
     if (e == null) {
-      e = new HLog.Entry(new HLogKey(), new WALEdit());
+      e = new WAL.Entry(new HLogKey(), new WALEdit());
     }
     if (compressionContext != null) {
       e.setCompressionContext(compressionContext);
@@ -165,7 +165,7 @@ public abstract class ReaderBase implements HLog.Reader {
    * @param e The entry to read into.
    * @return Whether there was anything to read.
    */
-  protected abstract boolean readNext(HLog.Entry e) throws IOException;
+  protected abstract boolean readNext(WAL.Entry e) throws IOException;
 
   /**
    * Performs a filesystem-level seek to a certain position in an underlying file.

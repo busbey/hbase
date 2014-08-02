@@ -36,6 +36,7 @@ import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.regionserver.HRegionServer;
+import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -79,7 +80,7 @@ public class TestLogRollPeriod {
       Table table = new HTable(TEST_UTIL.getConfiguration(), tableName);
       try {
         HRegionServer server = TEST_UTIL.getRSForFirstRegionInTable(tableName);
-        HLog log = server.getWAL();
+        WALService log = server.getWAL();
         checkMinLogRolls(log, 5);
       } finally {
         table.close();
@@ -100,7 +101,7 @@ public class TestLogRollPeriod {
     TEST_UTIL.createTable(tableName, family);
     try {
       HRegionServer server = TEST_UTIL.getRSForFirstRegionInTable(tableName);
-      HLog log = server.getWAL();
+      WALService log = server.getWAL();
       final Table table = new HTable(TEST_UTIL.getConfiguration(), tableName);
 
       Thread writerThread = new Thread("writer") {
@@ -135,7 +136,7 @@ public class TestLogRollPeriod {
     }
   }
 
-  private void checkMinLogRolls(final HLog log, final int minRolls)
+  private void checkMinLogRolls(final WALService log, final int minRolls)
       throws Exception {
     final List<Path> paths = new ArrayList<Path>();
     log.registerWALActionsListener(new WALActionsListener() {

@@ -125,7 +125,8 @@ import org.apache.hadoop.hbase.regionserver.HRegion.RegionScannerImpl;
 import org.apache.hadoop.hbase.regionserver.HRegion.RowLock;
 import org.apache.hadoop.hbase.regionserver.TestStore.FaultyFileSystem;
 import org.apache.hadoop.hbase.regionserver.wal.FaultyHLog;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
+import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
 import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
 import org.apache.hadoop.hbase.regionserver.wal.HLogUtil;
@@ -525,13 +526,13 @@ public class TestHRegion {
       for (long i = minSeqId; i <= maxSeqId; i += 10) {
         Path recoveredEdits = new Path(recoveredEditsDir, String.format("%019d", i));
         fs.create(recoveredEdits);
-        HLog.Writer writer = HLogFactory.createRecoveredEditsWriter(fs, recoveredEdits, CONF);
+        WAL.Writer writer = HLogFactory.createRecoveredEditsWriter(fs, recoveredEdits, CONF);
 
         long time = System.nanoTime();
         WALEdit edit = new WALEdit();
         edit.add(new KeyValue(row, family, Bytes.toBytes(i), time, KeyValue.Type.Put, Bytes
             .toBytes(i)));
-        writer.append(new HLog.Entry(new HLogKey(regionName, tableName, i, time,
+        writer.append(new WAL.Entry(new HLogKey(regionName, tableName, i, time,
             HConstants.DEFAULT_CLUSTER_ID), edit));
 
         writer.close();
@@ -576,13 +577,13 @@ public class TestHRegion {
       for (long i = minSeqId; i <= maxSeqId; i += 10) {
         Path recoveredEdits = new Path(recoveredEditsDir, String.format("%019d", i));
         fs.create(recoveredEdits);
-        HLog.Writer writer = HLogFactory.createRecoveredEditsWriter(fs, recoveredEdits, CONF);
+        WAL.Writer writer = HLogFactory.createRecoveredEditsWriter(fs, recoveredEdits, CONF);
 
         long time = System.nanoTime();
         WALEdit edit = new WALEdit();
         edit.add(new KeyValue(row, family, Bytes.toBytes(i), time, KeyValue.Type.Put, Bytes
             .toBytes(i)));
-        writer.append(new HLog.Entry(new HLogKey(regionName, tableName, i, time,
+        writer.append(new WAL.Entry(new HLogKey(regionName, tableName, i, time,
             HConstants.DEFAULT_CLUSTER_ID), edit));
 
         writer.close();
@@ -667,7 +668,7 @@ public class TestHRegion {
       for (long i = minSeqId; i <= maxSeqId; i += 10) {
         Path recoveredEdits = new Path(recoveredEditsDir, String.format("%019d", i));
         fs.create(recoveredEdits);
-        HLog.Writer writer = HLogFactory.createRecoveredEditsWriter(fs, recoveredEdits, CONF);
+        WAL.Writer writer = HLogFactory.createRecoveredEditsWriter(fs, recoveredEdits, CONF);
 
         long time = System.nanoTime();
         WALEdit edit = null;
@@ -685,7 +686,7 @@ public class TestHRegion {
           edit.add(new KeyValue(row, family, Bytes.toBytes(i), time, KeyValue.Type.Put, Bytes
             .toBytes(i)));
         }
-        writer.append(new HLog.Entry(new HLogKey(regionName, tableName, i, time,
+        writer.append(new WAL.Entry(new HLogKey(regionName, tableName, i, time,
             HConstants.DEFAULT_CLUSTER_ID), edit));
         writer.close();
       }
@@ -765,11 +766,11 @@ public class TestHRegion {
 
       Path recoveredEdits = new Path(recoveredEditsDir, String.format("%019d", 1000));
       fs.create(recoveredEdits);
-      HLog.Writer writer = HLogFactory.createRecoveredEditsWriter(fs, recoveredEdits, CONF);
+      WAL.Writer writer = HLogFactory.createRecoveredEditsWriter(fs, recoveredEdits, CONF);
 
       long time = System.nanoTime();
 
-      writer.append(new HLog.Entry(new HLogKey(regionName, tableName, 10, time,
+      writer.append(new WAL.Entry(new HLogKey(regionName, tableName, 10, time,
           HConstants.DEFAULT_CLUSTER_ID), WALEdit.createCompaction(region.getRegionInfo(),
           compactionDescriptor)));
       writer.close();
@@ -808,7 +809,7 @@ public class TestHRegion {
     TableName tableName = TableName.valueOf(method);
     byte[] family = Bytes.toBytes("family");
     Path logDir = TEST_UTIL.getDataTestDirOnTestFS(method + ".log");
-    HLog hlog = HLogFactory.createHLog(FILESYSTEM, logDir, "logs",
+    WALService hlog = HLogFactory.createHLog(FILESYSTEM, logDir, "logs",
       TEST_UTIL.getConfiguration());
 
     this.region = initHRegion(tableName.getName(), HConstants.EMPTY_START_ROW,
@@ -837,14 +838,14 @@ public class TestHRegion {
 
       // now verify that the flush markers are written
       hlog.close();
-      HLog.Reader reader = HLogFactory.createReader(fs,
+      WAL.Reader reader = HLogFactory.createReader(fs,
         fs.listStatus(new Path(logDir, "logs"))[0].getPath(),
         TEST_UTIL.getConfiguration());
 
-      List<HLog.Entry> flushDescriptors = new ArrayList<HLog.Entry>();
+      List<WAL.Entry> flushDescriptors = new ArrayList<WAL.Entry>();
       long lastFlushSeqId = -1;
       while (true) {
-        HLog.Entry entry = reader.next();
+        WAL.Entry entry = reader.next();
         if (entry == null) {
           break;
         }
@@ -883,9 +884,9 @@ public class TestHRegion {
 
       Path recoveredEdits = new Path(recoveredEditsDir, String.format("%019d", 1000));
       fs.create(recoveredEdits);
-      HLog.Writer writer = HLogFactory.createRecoveredEditsWriter(fs, recoveredEdits, CONF);
+      WAL.Writer writer = HLogFactory.createRecoveredEditsWriter(fs, recoveredEdits, CONF);
 
-      for (HLog.Entry entry : flushDescriptors) {
+      for (WAL.Entry entry : flushDescriptors) {
         writer.append(entry);
       }
       writer.close();
@@ -953,7 +954,7 @@ public class TestHRegion {
     // spy an actual WAL implementation to throw exception (was not able to mock)
     Path logDir = TEST_UTIL.getDataTestDirOnTestFS(method + "log");
 
-    HLog hlog = spy(HLogFactory.createHLog(FILESYSTEM, logDir, "logs",
+    WALService hlog = spy(HLogFactory.createHLog(FILESYSTEM, logDir, "logs",
       TEST_UTIL.getConfiguration()));
 
     this.region = initHRegion(tableName.getName(), HConstants.EMPTY_START_ROW,
@@ -4486,8 +4487,8 @@ public class TestHRegion {
     TableName tableName = TableName.valueOf(method);
     byte[] family = Bytes.toBytes("family");
     Path logDir = new Path(new Path(dir + method), "log");
-    HLog hlog = HLogFactory.createHLog(FILESYSTEM, logDir, UUID.randomUUID().toString(), conf);
-    final HLog log = spy(hlog);
+    WALService hlog = HLogFactory.createHLog(FILESYSTEM, logDir, UUID.randomUUID().toString(), conf);
+    final WALService log = spy(hlog);
     this.region = initHRegion(tableName.getName(), HConstants.EMPTY_START_ROW,
         HConstants.EMPTY_END_ROW, method, conf, false, tableDurability, log,
         new byte[][] { family });
@@ -4889,7 +4890,7 @@ public class TestHRegion {
    */
   private static HRegion initHRegion(byte[] tableName, byte[] startKey, byte[] stopKey,
       String callingMethod, Configuration conf, boolean isReadOnly, Durability durability,
-      HLog hlog, byte[]... families) throws IOException {
+      WALService hlog, byte[]... families) throws IOException {
     return TEST_UTIL.createLocalHRegion(tableName, startKey, stopKey, callingMethod, conf, isReadOnly, durability, hlog, families);
   }
 
@@ -5517,7 +5518,7 @@ public class TestHRegion {
     ArgumentCaptor<WALEdit> editCaptor = ArgumentCaptor.forClass(WALEdit.class);
 
     // capture appendNoSync() calls
-    HLog log = mock(HLog.class);
+    WALService log = mock(WALService.class);
     when(rss.getWAL((HRegionInfo) any())).thenReturn(log);
 
     try {
@@ -5577,7 +5578,7 @@ public class TestHRegion {
     ArgumentCaptor<WALEdit> editCaptor = ArgumentCaptor.forClass(WALEdit.class);
 
     // capture appendNoSync() calls
-    HLog log = mock(HLog.class);
+    WALService log = mock(WALService.class);
     when(rss.getWAL((HRegionInfo) any())).thenReturn(log);
 
     // open a region first so that it can be closed later

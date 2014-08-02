@@ -34,7 +34,7 @@ import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.regionserver.InternalScanner;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.hbase.testclassification.FilterTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -150,7 +150,7 @@ public class TestInvocationRecordFilter {
 
   @After
   public void tearDown() throws Exception {
-    HLog hlog = region.getLog();
+    WALService hlog = region.getLog();
     region.close();
     hlog.closeAndDelete();
   }

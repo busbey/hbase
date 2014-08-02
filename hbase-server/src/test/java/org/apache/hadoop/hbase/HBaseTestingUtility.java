@@ -90,7 +90,7 @@ import org.apache.hadoop.hbase.regionserver.HStore;
 import org.apache.hadoop.hbase.regionserver.InternalScanner;
 import org.apache.hadoop.hbase.regionserver.RegionServerServices;
 import org.apache.hadoop.hbase.regionserver.RegionServerStoppedException;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.hbase.security.User;
 import org.apache.hadoop.hbase.tool.Canary;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -1658,10 +1658,10 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
    * @return created hregion
    * @throws IOException
    */
-  public HRegion createLocalHRegion(HRegionInfo info, HTableDescriptor desc, HLog hlog) throws IOException {
+  public HRegion createLocalHRegion(HRegionInfo info, HTableDescriptor desc, WALService hlog)
+      throws IOException {
     return HRegion.createHRegion(info, getDataTestDir(), getConfiguration(), desc, hlog);
   }
-
 
   /**
    * @param tableName
@@ -1677,7 +1677,7 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
    */
   public HRegion createLocalHRegion(byte[] tableName, byte[] startKey, byte[] stopKey,
       String callingMethod, Configuration conf, boolean isReadOnly, Durability durability,
-      HLog hlog, byte[]... families) throws IOException {
+      WALService hlog, byte[]... families) throws IOException {
     HTableDescriptor htd = new HTableDescriptor(TableName.valueOf(tableName));
     htd.setReadOnly(isReadOnly);
     for (byte[] family : families) {

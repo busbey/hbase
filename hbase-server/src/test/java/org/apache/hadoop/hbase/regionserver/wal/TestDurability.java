@@ -77,7 +77,7 @@ public class TestDurability {
 
   @Test
   public void testDurability() throws Exception {
-    HLog wal = HLogFactory.createHLog(FS, DIR, "hlogdir",
+    WALService wal = HLogFactory.createHLog(FS, DIR, "hlogdir",
         "hlogdir_archive", CONF);
     byte[] tableName = Bytes.toBytes("TestDurability");
     HRegion region = createHRegion(tableName, "region", wal, Durability.USE_DEFAULT);
@@ -140,7 +140,7 @@ public class TestDurability {
     byte[] col3 = Bytes.toBytes("col3");
 
     // Setting up region
-    HLog wal = HLogFactory.createHLog(FS, DIR, "myhlogdir",
+    WALService wal = HLogFactory.createHLog(FS, DIR, "myhlogdir",
         "myhlogdir_archive", CONF);
     byte[] tableName = Bytes.toBytes("TestIncrement");
     HRegion region = createHRegion(tableName, "increment", wal, Durability.USE_DEFAULT);
@@ -197,11 +197,11 @@ public class TestDurability {
     return p;
   }
 
-  private void verifyHLogCount(HLog log, int expected) throws Exception {
-    Path walPath = ((FSHLog) log).computeFilename();
-    HLog.Reader reader = HLogFactory.createReader(FS, walPath, CONF);
+  private void verifyHLogCount(WALService log, int expected) throws Exception {
+    Path walPath = ((AbstractWAL) log).getCurrentFileName();
+    WAL.Reader reader = HLogFactory.createReader(FS, walPath, CONF);
     int count = 0;
-    HLog.Entry entry = new HLog.Entry();
+    WAL.Entry entry = new WAL.Entry();
     while (reader.next(entry) != null) count++;
     reader.close();
     assertEquals(expected, count);
@@ -209,7 +209,7 @@ public class TestDurability {
 
   // lifted from TestAtomicOperation
   private HRegion createHRegion (byte [] tableName, String callingMethod,
-      HLog log, Durability durability)
+      WALService log, Durability durability)
     throws IOException {
       HTableDescriptor htd = new HTableDescriptor(TableName.valueOf(tableName));
       htd.setDurability(durability);

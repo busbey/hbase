@@ -56,7 +56,7 @@ public class HLogUtil {
    * Pattern used to validate a HLog file name
    */
   private static final Pattern pattern =
-      Pattern.compile(".*\\.\\d*("+HLog.META_HLOG_FILE_EXTN+")*");
+      Pattern.compile(".*\\.\\d*("+WAL.META_HLOG_FILE_EXTN+")*");
 
   /**
    * @param filename
@@ -185,8 +185,9 @@ public class HLogUtil {
       logDirName = logDir.getName();
     }
     ServerName serverName = null;
-    if (logDirName.endsWith(HLog.SPLITTING_EXT)) {
-      logDirName = logDirName.substring(0, logDirName.length() - HLog.SPLITTING_EXT.length());
+    if (logDirName.endsWith(WAL.SPLITTING_EXT)) {
+      logDirName = logDirName
+          .substring(0, logDirName.length() - WAL.SPLITTING_EXT.length());
     }
     try {
       serverName = ServerName.parseServerName(logDirName);
@@ -225,11 +226,11 @@ public class HLogUtil {
           // There can be other files in this directory other than edit files.
           // In particular, on error, we'll move aside the bad edit file giving
           // it a timestamp suffix. See moveAsideBadEditsFile.
-          Matcher m = HLog.EDITFILES_NAME_PATTERN.matcher(p.getName());
+          Matcher m = WAL.EDITFILES_NAME_PATTERN.matcher(p.getName());
           result = fs.isFile(p) && m.matches();
           // Skip the file whose name ends with RECOVERED_LOG_TMPFILE_SUFFIX,
           // because it means splithlog thread is writting this file.
-          if (p.getName().endsWith(HLog.RECOVERED_LOG_TMPFILE_SUFFIX)) {
+          if (p.getName().endsWith(WAL.RECOVERED_LOG_TMPFILE_SUFFIX)) {
             result = false;
           }
         } catch (IOException e) {
@@ -251,7 +252,7 @@ public class HLogUtil {
   }
 
   public static boolean isMetaFile(String p) {
-    if (p != null && p.endsWith(HLog.META_HLOG_FILE_EXTN)) {
+    if (p != null && p.endsWith(WAL.META_HLOG_FILE_EXTN)) {
       return true;
     }
     return false;
@@ -264,7 +265,7 @@ public class HLogUtil {
    * the compaction from finishing if this regionserver has already lost its lease on the log.
    * @param sequenceId Used by HLog to get sequence Id for the waledit.
    */
-  public static void writeCompactionMarker(HLog log, HTableDescriptor htd, HRegionInfo info,
+  public static void writeCompactionMarker(WALService log, HTableDescriptor htd, HRegionInfo info,
       final CompactionDescriptor c, AtomicLong sequenceId) throws IOException {
     TableName tn = TableName.valueOf(c.getTableName().toByteArray());
     HLogKey key = new HLogKey(info.getEncodedNameAsBytes(), tn);
@@ -278,7 +279,7 @@ public class HLogUtil {
   /**
    * Write a flush marker indicating a start / abort or a complete of a region flush
    */
-  public static long writeFlushMarker(HLog log, HTableDescriptor htd, HRegionInfo info,
+  public static long writeFlushMarker(WALService log, HTableDescriptor htd, HRegionInfo info,
       final FlushDescriptor f, AtomicLong sequenceId, boolean sync) throws IOException {
     TableName tn = TableName.valueOf(f.getTableName().toByteArray());
     HLogKey key = new HLogKey(info.getEncodedNameAsBytes(), tn);
@@ -293,7 +294,7 @@ public class HLogUtil {
   /**
    * Write a region open marker indicating that the region is opened
    */
-  public static long writeRegionEventMarker(HLog log, HTableDescriptor htd, HRegionInfo info,
+  public static long writeRegionEventMarker(WALService log, HTableDescriptor htd, HRegionInfo info,
       final RegionEventDescriptor r, AtomicLong sequenceId) throws IOException {
     TableName tn = TableName.valueOf(r.getTableName().toByteArray());
     HLogKey key = new HLogKey(info.getEncodedNameAsBytes(), tn);
@@ -326,7 +327,7 @@ public class HLogUtil {
       files = FSUtils.listStatus(fs, editsdir, new PathFilter() {
         @Override
         public boolean accept(Path p) {
-          if (p.getName().endsWith(HLog.SEQUENCE_ID_FILE_SUFFIX)) {
+          if (p.getName().endsWith(WAL.SEQUENCE_ID_FILE_SUFFIX)) {
             return true;
           }
           return false;
@@ -337,7 +338,7 @@ public class HLogUtil {
           String fileName = status.getPath().getName();
           try {
             Long tmpSeqId = Long.parseLong(fileName.substring(0, fileName.length()
-                    - HLog.SEQUENCE_ID_FILE_SUFFIX.length()));
+                    - WAL.SEQUENCE_ID_FILE_SUFFIX.length()));
             maxSeqId = Math.max(tmpSeqId, maxSeqId);
           } catch (NumberFormatException ex) {
             LOG.warn("Invalid SeqId File Name=" + fileName);
@@ -351,7 +352,7 @@ public class HLogUtil {
     newSeqId += saftyBumper; // bump up SeqId
     
     // write a new seqId file
-    Path newSeqIdFile = new Path(editsdir, newSeqId + HLog.SEQUENCE_ID_FILE_SUFFIX);
+    Path newSeqIdFile = new Path(editsdir, newSeqId + WAL.SEQUENCE_ID_FILE_SUFFIX);
     if (!fs.createNewFile(newSeqIdFile)) {
       throw new IOException("Failed to create SeqId file:" + newSeqIdFile);
     }

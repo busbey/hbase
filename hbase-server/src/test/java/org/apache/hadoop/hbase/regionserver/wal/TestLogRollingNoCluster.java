@@ -59,7 +59,7 @@ public class TestLogRollingNoCluster {
     Path dir = TEST_UTIL.getDataTestDir();
     // The implementation needs to know the 'handler' count.
     TEST_UTIL.getConfiguration().setInt(HConstants.REGION_SERVER_HANDLER_COUNT, THREAD_COUNT);
-    HLog wal = HLogFactory.createHLog(fs, dir, "logs", TEST_UTIL.getConfiguration());
+    WALService wal = HLogFactory.createHLog(fs, dir, "logs", TEST_UTIL.getConfiguration());
     
     Appender [] appenders = null;
 
@@ -90,11 +90,11 @@ public class TestLogRollingNoCluster {
    */
   static class Appender extends Thread {
     private final Log log;
-    private final HLog wal;
+    private final WALService wal;
     private final int count;
     private Exception e = null;
 
-    Appender(final HLog wal, final int index, final int count) {
+    Appender(final WALService wal, final int index, final int count) {
       super("" + index);
       this.wal = wal;
       this.count = count;
@@ -120,7 +120,7 @@ public class TestLogRollingNoCluster {
         for (int i = 0; i < this.count; i++) {
           long now = System.currentTimeMillis();
           // Roll every ten edits if the log has anything in it.
-          if (i % 10 == 0 && ((FSHLog) this.wal).getNumEntries() > 0) {
+          if (i % 10 == 0 && ((AbstractWAL) this.wal).getNumEntries() > 0) {
             this.wal.rollWriter();
           }
           WALEdit edit = new WALEdit();

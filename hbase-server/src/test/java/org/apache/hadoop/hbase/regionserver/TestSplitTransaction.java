@@ -45,7 +45,7 @@ import org.apache.hadoop.hbase.coprocessor.BaseRegionObserver;
 import org.apache.hadoop.hbase.coprocessor.CoprocessorHost;
 import org.apache.hadoop.hbase.coprocessor.ObserverContext;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
@@ -70,7 +70,7 @@ public class TestSplitTransaction {
   private final Path testdir =
     TEST_UTIL.getDataTestDir(this.getClass().getName());
   private HRegion parent;
-  private HLog wal;
+  private WALService wal;
   private FileSystem fs;
   private static final byte [] STARTROW = new byte [] {'a', 'a', 'a'};
   // '{' is next ascii after 'z'.
@@ -327,7 +327,7 @@ public class TestSplitTransaction {
     return rowcount;
   }
 
-  HRegion createRegion(final Path testdir, final HLog wal)
+  HRegion createRegion(final Path testdir, final WALService wal)
   throws IOException {
     // Make a region with start and end keys. Use 'aaa', to 'AAA'.  The load
     // region utility will add rows between 'aaa' and 'zzz'.

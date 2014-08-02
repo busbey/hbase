@@ -154,7 +154,7 @@ public class HLogKey implements WritableComparable<HLogKey>, SequenceId {
   }
 
   public HLogKey(final byte[] encodedRegionName, final TableName tablename, final long now) {
-    init(encodedRegionName, tablename, HLog.NO_SEQUENCE_ID, now,
+    init(encodedRegionName, tablename, WAL.NO_SEQUENCE_ID, now,
         EMPTY_UUIDS, HConstants.NO_NONCE, HConstants.NO_NONCE);
   }
 
@@ -191,7 +191,7 @@ public class HLogKey implements WritableComparable<HLogKey>, SequenceId {
    */
   public HLogKey(final byte [] encodedRegionName, final TableName tablename,
       final long now, List<UUID> clusterIds, long nonceGroup, long nonce) {
-    init(encodedRegionName, tablename, HLog.NO_SEQUENCE_ID, now, clusterIds,
+    init(encodedRegionName, tablename, WAL.NO_SEQUENCE_ID, now, clusterIds,
       nonceGroup, nonce);
   }
 

@@ -77,8 +77,8 @@ public class ProtobufLogWriter extends WriterBase {
     super.init(fs, path, conf, overwritable);
     assert this.output == null;
     boolean doCompress = initializeCompressionContext(conf, path);
-    this.trailerWarnSize = conf.getInt(HLog.WAL_TRAILER_WARN_SIZE,
-      HLog.DEFAULT_WAL_TRAILER_WARN_SIZE);
+    this.trailerWarnSize = conf.getInt(WAL.WAL_TRAILER_WARN_SIZE,
+      WAL.DEFAULT_WAL_TRAILER_WARN_SIZE);
     int bufferSize = FSUtils.getDefaultBufferSize(fs);
     short replication = (short)conf.getInt(
         "hbase.regionserver.hlog.replication", FSUtils.getDefaultReplication(fs, path));
@@ -110,7 +110,7 @@ public class ProtobufLogWriter extends WriterBase {
   }
 
   @Override
-  public void append(HLog.Entry entry) throws IOException {
+  public void append(WAL.Entry entry) throws IOException {
     entry.setCompressionContext(compressionContext);
     entry.getKey().getBuilder(compressor).
       setFollowingKvCount(entry.getEdit().size()).build().writeDelimitedTo(output);

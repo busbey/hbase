@@ -96,17 +96,17 @@ public class WALEditsReplaySink {
    * @param entries
    * @throws IOException
    */
-  public void replayEntries(List<Pair<HRegionLocation, HLog.Entry>> entries) throws IOException {
+  public void replayEntries(List<Pair<HRegionLocation, WAL.Entry>> entries) throws IOException {
     if (entries.size() == 0) {
       return;
     }
 
     int batchSize = entries.size();
-    Map<HRegionInfo, List<HLog.Entry>> entriesByRegion =
-        new HashMap<HRegionInfo, List<HLog.Entry>>();
+    Map<HRegionInfo, List<WAL.Entry>> entriesByRegion =
+        new HashMap<HRegionInfo, List<WAL.Entry>>();
     HRegionLocation loc = null;
-    HLog.Entry entry = null;
-    List<HLog.Entry> regionEntries = null;
+    WAL.Entry entry = null;
+    List<WAL.Entry> regionEntries = null;
     // Build the action list.
     for (int i = 0; i < batchSize; i++) {
       loc = entries.get(i).getFirst();
@@ -114,7 +114,7 @@ public class WALEditsReplaySink {
       if (entriesByRegion.containsKey(loc.getRegionInfo())) {
         regionEntries = entriesByRegion.get(loc.getRegionInfo());
       } else {
-        regionEntries = new ArrayList<HLog.Entry>();
+        regionEntries = new ArrayList<WAL.Entry>();
         entriesByRegion.put(loc.getRegionInfo(), regionEntries);
       }
       regionEntries.add(entry);
@@ -123,9 +123,9 @@ public class WALEditsReplaySink {
     long startTime = EnvironmentEdgeManager.currentTime();
 
     // replaying edits by region
-    for (Map.Entry<HRegionInfo, List<HLog.Entry>> _entry : entriesByRegion.entrySet()) {
+    for (Map.Entry<HRegionInfo, List<WAL.Entry>> _entry : entriesByRegion.entrySet()) {
       HRegionInfo curRegion = _entry.getKey();
-      List<HLog.Entry> allActions = _entry.getValue();
+      List<WAL.Entry> allActions = _entry.getValue();
       // send edits in chunks
       int totalActions = allActions.size();
       int replayedActions = 0;
@@ -159,7 +159,7 @@ public class WALEditsReplaySink {
   }
 
   private void replayEdits(final HRegionLocation regionLoc, final HRegionInfo regionInfo,
-      final List<HLog.Entry> entries) throws IOException {
+      final List<WAL.Entry> entries) throws IOException {
     try {
       RpcRetryingCallerFactory factory = RpcRetryingCallerFactory.instantiate(conf);
       ReplayServerCallable<ReplicateWALEntryResponse> callable =
@@ -182,11 +182,11 @@ public class WALEditsReplaySink {
    */
   class ReplayServerCallable<R> extends RegionServerCallable<ReplicateWALEntryResponse> {
     private HRegionInfo regionInfo;
-    private List<HLog.Entry> entries;
+    private List<WAL.Entry> entries;
 
     ReplayServerCallable(final HConnection connection, final TableName tableName,
         final HRegionLocation regionLoc, final HRegionInfo regionInfo,
-        final List<HLog.Entry> entries) {
+        final List<WAL.Entry> entries) {
       super(connection, tableName, null);
       this.entries = entries;
       this.regionInfo = regionInfo;
@@ -203,11 +203,11 @@ public class WALEditsReplaySink {
       return null;
     }
 
-    private void replayToServer(HRegionInfo regionInfo, List<HLog.Entry> entries)
+    private void replayToServer(HRegionInfo regionInfo, List<WAL.Entry> entries)
         throws IOException, ServiceException {
       if (entries.isEmpty()) return;
 
-      HLog.Entry[] entriesArray = new HLog.Entry[entries.size()];
+      WAL.Entry[] entriesArray = new WAL.Entry[entries.size()];
       entriesArray = entries.toArray(entriesArray);
       AdminService.BlockingInterface remoteSvr = conn.getAdmin(getLocation().getServerName());
 
@@ -228,7 +228,7 @@ public class WALEditsReplaySink {
       // if not due to connection issue, the following code should run fast because it uses
       // cached location
       boolean skip = false;
-      for (HLog.Entry entry : this.entries) {
+      for (WAL.Entry entry : this.entries) {
         WALEdit edit = entry.getEdit();
         List<Cell> cells = edit.getCells();
         for (Cell cell : cells) {

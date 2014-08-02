@@ -135,9 +135,8 @@ public class TestLogRollAbort {
     try {
 
       HRegionServer server = TEST_UTIL.getRSForFirstRegionInTable(tableName);
-      HLog log = server.getWAL();
+      WALService log = server.getWAL();
 
-      assertTrue("Need HDFS-826 for this test", ((FSHLog) log).canGetCurReplicas());
       // don't run this test without append support (HDFS-200 & HDFS-142)
       assertTrue("Need append support for this test",
         FSUtils.isAppendSupported(TEST_UTIL.getConfiguration()));
@@ -177,7 +176,7 @@ public class TestLogRollAbort {
   @Test (timeout=300000)
   public void testLogRollAfterSplitStart() throws IOException {
     LOG.info("Verify wal roll after split starts will fail.");
-    HLog log = null;
+    AbstractWAL log = null;
     String logName = "testLogRollAfterSplitStart";
     Path thisTestsDir = new Path(HBASEDIR, logName);
 
@@ -187,7 +186,7 @@ public class TestLogRollAbort {
           TableName.valueOf(this.getClass().getName());
       HRegionInfo regioninfo = new HRegionInfo(tableName,
           HConstants.EMPTY_START_ROW, HConstants.EMPTY_END_ROW);
-      log = HLogFactory.createHLog(fs, HBASEDIR, logName, conf);
+      log = (AbstractWAL)HLogFactory.createHLog(fs, HBASEDIR, logName, conf);
       final AtomicLong sequenceId = new AtomicLong(1);
 
       final int total = 20;
@@ -206,7 +205,7 @@ public class TestLogRollAbort {
        * handles RS shutdowns (as observed by the splitting process)
        */
       // rename the directory so a rogue RS doesn't create more HLogs
-      Path rsSplitDir = thisTestsDir.suffix(HLog.SPLITTING_EXT);
+      Path rsSplitDir = thisTestsDir.suffix(WAL.SPLITTING_EXT);
       if (!fs.rename(thisTestsDir, rsSplitDir)) {
         throw new IOException("Failed fs.rename for log split: " + thisTestsDir);
       }

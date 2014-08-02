@@ -118,7 +118,7 @@ public class TestHLogMethods {
 
     EntryBuffers sink = new EntryBuffers(new PipelineController(), 1*1024*1024);
     for (int i = 0; i < 1000; i++) {
-      HLog.Entry entry = createTestLogEntry(i);
+      WAL.Entry entry = createTestLogEntry(i);
       sink.appendEntry(entry);
     }
 
@@ -133,7 +133,7 @@ public class TestHLogMethods {
 
     // Insert some more entries
     for (int i = 0; i < 500; i++) {
-      HLog.Entry entry = createTestLogEntry(i);
+      WAL.Entry entry = createTestLogEntry(i);
       sink.appendEntry(entry);
     }
     // Asking for another chunk shouldn't work since the first one
@@ -155,7 +155,7 @@ public class TestHLogMethods {
     assertEquals(0, sink.totalBuffered);
   }
 
-  private HLog.Entry createTestLogEntry(int i) {
+  private WAL.Entry createTestLogEntry(int i) {
     long seq = i;
     long now = i * 1000;
 
@@ -163,7 +163,7 @@ public class TestHLogMethods {
     edit.add(KeyValueTestUtil.create("row", "fam", "qual", 1234, "val"));
     HLogKey key = new HLogKey(TEST_REGION, TEST_TABLE, seq, now,
         HConstants.DEFAULT_CLUSTER_ID);
-    HLog.Entry entry = new HLog.Entry(key, edit);
+    WAL.Entry entry = new WAL.Entry(key, edit);
     return entry;
   }
 

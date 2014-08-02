@@ -33,6 +33,7 @@ import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.io.hfile.BlockCache;
 import org.apache.hadoop.hbase.io.hfile.CacheConfig;
 import org.apache.hadoop.hbase.io.hfile.CacheStats;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
@@ -492,16 +493,16 @@ class MetricsRegionServerWrapperImpl
 
       //Copy over computed values so that no thread sees half computed values.
       numStores = tempNumStores;
-      long tempNumHLogFiles = regionServer.hlog.getNumLogFiles();
+      long tempNumHLogFiles = ((WAL)regionServer.hlog).getNumLogFiles();
       // meta logs
       if (regionServer.hlogForMeta != null) {
-        tempNumHLogFiles += regionServer.hlogForMeta.getNumLogFiles();
+        tempNumHLogFiles += ((WAL)regionServer.hlogForMeta).getNumLogFiles();
       }
       numHLogFiles = tempNumHLogFiles;
       
-      long tempHlogFileSize = regionServer.hlog.getLogFileSize();
+      long tempHlogFileSize = ((WAL)regionServer.hlog).getLogFileSize();
       if (regionServer.hlogForMeta != null) {
-        tempHlogFileSize += regionServer.hlogForMeta.getLogFileSize();
+        tempHlogFileSize += ((WAL)regionServer.hlogForMeta).getLogFileSize();
       }
       hlogFileSize = tempHlogFileSize;
       

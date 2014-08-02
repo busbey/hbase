@@ -19,188 +19,28 @@
 
 package org.apache.hadoop.hbase.regionserver.wal;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.regex.Pattern;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataInputStream;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.HBaseInterfaceAudience;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.TableName;
-import org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALTrailer;
-import org.apache.hadoop.io.Writable;
 
 import com.google.common.annotations.VisibleForTesting;
 
 /**
- * HLog records all the edits to HStore.  It is the hbase write-ahead-log (WAL).
+ * A Write Ahead Log (WAL) provides service for reading, writing waledits. This interface provides
+ * APIs for WAL users (such as RegionServer) to use the WAL (do append, sync, etc).
  */
 @InterfaceAudience.Private
-// TODO: Rename interface to WAL
-public interface HLog {
-  Log LOG = LogFactory.getLog(HLog.class);
-  public static final long NO_SEQUENCE_ID = -1;
-
-  /** File Extension used while splitting an HLog into regions (HBASE-2312) */
-  // TODO: this seems like an implementation detail that does not belong here.
-  String SPLITTING_EXT = "-splitting";
-  boolean SPLIT_SKIP_ERRORS_DEFAULT = false;
-  /** The hbase:meta region's HLog filename extension.*/
-  // TODO: Implementation detail.  Does not belong in here.
-  String META_HLOG_FILE_EXTN = ".meta";
-
-  /**
-   * Configuration name of HLog Trailer's warning size. If a waltrailer's size is greater than the
-   * configured size, a warning is logged. This is used with Protobuf reader/writer.
-   */
-  // TODO: Implementation detail.  Why in here?
-  String WAL_TRAILER_WARN_SIZE = "hbase.regionserver.waltrailer.warn.size";
-  int DEFAULT_WAL_TRAILER_WARN_SIZE = 1024 * 1024; // 1MB
-
-  // TODO: Implementation detail.  Why in here?
-  Pattern EDITFILES_NAME_PATTERN = Pattern.compile("-?[0-9]+");
-  String RECOVERED_LOG_TMPFILE_SUFFIX = ".temp";
-  String SEQUENCE_ID_FILE_SUFFIX = "_seqid";
-
-  /**
-   * WAL Reader Interface
-   */
-  interface Reader {
-    /**
-     * @param fs File system.
-     * @param path Path.
-     * @param c Configuration.
-     * @param s Input stream that may have been pre-opened by the caller; may be null.
-     */
-    void init(FileSystem fs, Path path, Configuration c, FSDataInputStream s) throws IOException;
-
-    void close() throws IOException;
-
-    Entry next() throws IOException;
-
-    Entry next(Entry reuse) throws IOException;
-
-    void seek(long pos) throws IOException;
-
-    long getPosition() throws IOException;
-    void reset() throws IOException;
-
-    /**
-     * @return the WALTrailer of the current HLog. It may be null in case of legacy or corrupt WAL
-     * files.
-     */
-    // TODO: What we need a trailer on WAL for?  It won't be present on last WAL most of the time.
-    // What then?
-    WALTrailer getWALTrailer();
-  }
-
-  /**
-   * WAL Writer Intrface.
-   */
-  interface Writer {
-    void init(FileSystem fs, Path path, Configuration c, boolean overwritable) throws IOException;
-
-    void close() throws IOException;
-
-    void sync() throws IOException;
-
-    void append(Entry entry) throws IOException;
-
-    long getLength() throws IOException;
-
-    /**
-     * Sets HLog/WAL's WALTrailer. This trailer is appended at the end of WAL on closing.
-     * @param walTrailer trailer to append to WAL.
-     */
-    // TODO: Why a trailer on the log?
-    void setWALTrailer(WALTrailer walTrailer);
-  }
-
-  /**
-   * Utility class that lets us keep track of the edit and it's associated key. Only used when
-   * splitting logs.
-   */
-  // TODO: Remove this Writable.
-  // TODO: Why is this in here?  Implementation detail?
-  @InterfaceAudience.LimitedPrivate(HBaseInterfaceAudience.REPLICATION)
-  class Entry implements Writable {
-    private WALEdit edit;
-    private HLogKey key;
-
-    public Entry() {
-      edit = new WALEdit();
-      key = new HLogKey();
-    }
-
-    /**
-     * Constructor for both params
-     *
-     * @param edit log's edit
-     * @param key log's key
-     */
-    public Entry(HLogKey key, WALEdit edit) {
-      this.key = key;
-      this.edit = edit;
-    }
-
-    /**
-     * Gets the edit
-     *
-     * @return edit
-     */
-    public WALEdit getEdit() {
-      return edit;
-    }
-
-    /**
-     * Gets the key
-     *
-     * @return key
-     */
-    public HLogKey getKey() {
-      return key;
-    }
-
-    /**
-     * Set compression context for this entry.
-     *
-     * @param compressionContext Compression context
-     */
-    public void setCompressionContext(CompressionContext compressionContext) {
-      edit.setCompressionContext(compressionContext);
-      key.setCompressionContext(compressionContext);
-    }
-
-    @Override
-    public String toString() {
-      return this.key + "=" + this.edit;
-    }
-
-    @Override
-    @SuppressWarnings("deprecation")
-    public void write(DataOutput dataOutput) throws IOException {
-      this.key.write(dataOutput);
-      this.edit.write(dataOutput);
-    }
-
-    @Override
-    public void readFields(DataInput dataInput) throws IOException {
-      this.key.readFields(dataInput);
-      this.edit.readFields(dataInput);
-    }
-  }
+public interface WALService {
+  Log LOG = LogFactory.getLog(WALService.class);
 
   /**
    * Registers WALActionsListener
@@ -216,23 +56,6 @@ public interface HLog {
    */
   boolean unregisterWALActionsListener(final WALActionsListener listener);
 
-  /**
-   * @return Current state of the monotonically increasing file id.
-   */
-  // TODO: Remove.  Implementation detail.
-  long getFilenum();
-
-  /**
-   * @return the number of HLog files
-   */
-  int getNumLogFiles();
-
-  /**
-   * @return the size of HLog files
-   */
-  long getLogFileSize();
-
-  // TODO: Log rolling should not be in this interface.
   /**
    * Roll the log writer. That is, start writing log messages to a new file.
    *
@@ -301,22 +124,6 @@ public interface HLog {
   @VisibleForTesting
   public void append(HRegionInfo info, TableName tableName, WALEdit edits,
       final long now, HTableDescriptor htd, AtomicLong sequenceId) throws IOException;
-
-  /**
-   * For notification post append to the writer.  Used by metrics system at least.
-   * @param entry
-   * @param elapsedTime
-   * @return Size of this append.
-   */
-  long postAppend(final Entry entry, final long elapsedTime);
-
-  /**
-   * For notification post writer sync.  Used by metrics system at least.
-   * @param timeInMillis How long the filesystem sync took in milliseconds.
-   * @param handlerSyncs How many sync handler calls were released by this call to filesystem
-   * sync.
-   */
-  void postSync(final long timeInMillis, final int handlerSyncs);
 
   /**
    * Append a set of edits to the WAL. WAL edits are keyed by (encoded) regionName, rowname, and
@@ -428,13 +235,6 @@ public interface HLog {
    */
   WALCoprocessorHost getCoprocessorHost();
 
-  /**
-   * Get LowReplication-Roller status
-   *
-   * @return lowReplicationRollEnabled
-   */
-  // TODO: This is implementation detail?
-  boolean isLowReplicationRollEnabled();
 
   /** Gets the earliest sequence number in the memstore for this particular region.
    * This can serve as best-effort "recent" WAL number for this region.

@@ -273,7 +273,7 @@ public class TestWALReplay {
     HRegion.closeHRegion(region2);
     final byte [] rowName = tableName.getName();
 
-    HLog wal1 = createWAL(this.conf);
+    WALService wal1 = createWAL(this.conf);
     // Add 1k to each family.
     final int countPerFamily = 1000;
     final AtomicLong sequenceId = new AtomicLong(1);
@@ -284,7 +284,7 @@ public class TestWALReplay {
     wal1.close();
     runWALSplit(this.conf);
 
-    HLog wal2 = createWAL(this.conf);
+    WALService wal2 = createWAL(this.conf);
     // Add 1k to each family.
     for (HColumnDescriptor hcd: htd.getFamilies()) {
       addWALEdits(tableName, hri, rowName, hcd.getName(), countPerFamily,
@@ -293,7 +293,7 @@ public class TestWALReplay {
     wal2.close();
     runWALSplit(this.conf);
 
-    HLog wal3 = createWAL(this.conf);
+    WALService wal3 = createWAL(this.conf);
     try {
       HRegion region = HRegion.openHRegion(this.conf, this.fs, hbaseRootDir, hri, htd, wal3);
       long seqid = region.getOpenSeqNum();
@@ -333,7 +333,7 @@ public class TestWALReplay {
     HRegion region2 = HRegion.createHRegion(hri,
         hbaseRootDir, this.conf, htd);
     HRegion.closeHRegion(region2);
-    HLog wal = createWAL(this.conf);
+    WALService wal = createWAL(this.conf);
     HRegion region = HRegion.openHRegion(hri, htd, wal, this.conf);
 
     byte [] family = htd.getFamilies().iterator().next().getName();
@@ -360,7 +360,7 @@ public class TestWALReplay {
       @Override
       public Object run() throws Exception {
         runWALSplit(newConf);
-        HLog wal2 = createWAL(newConf);
+        WALService wal2 = createWAL(newConf);
 
         HRegion region2 = HRegion.openHRegion(newConf, FileSystem.get(newConf),
           hbaseRootDir, hri, htd, wal2);
@@ -400,7 +400,7 @@ public class TestWALReplay {
     HRegion region2 = HRegion.createHRegion(hri,
         hbaseRootDir, this.conf, htd);
     HRegion.closeHRegion(region2);
-    HLog wal = createWAL(this.conf);
+    WALService wal = createWAL(this.conf);
     HRegion region = HRegion.openHRegion(hri, htd, wal, this.conf);
 
     // Add an edit so something in the WAL
@@ -432,7 +432,7 @@ public class TestWALReplay {
       @Override
       public Object run() throws Exception {
         runWALSplit(newConf);
-        HLog wal2 = createWAL(newConf);
+        WALService wal2 = createWAL(newConf);
 
         HRegion region2 = HRegion.openHRegion(newConf, FileSystem.get(newConf),
             hbaseRootDir, hri, htd, wal2);
@@ -476,7 +476,7 @@ public class TestWALReplay {
     // Write countPerFamily edits into the three families.  Do a flush on one
     // of the families during the load of edits so its seqid is not same as
     // others to test we do right thing when different seqids.
-    HLog wal = createWAL(this.conf);
+    WALService wal = createWAL(this.conf);
     HRegion region = HRegion.openHRegion(this.conf, this.fs, hbaseRootDir, hri, htd, wal);
     long seqid = region.getOpenSeqNum();
     boolean first = true;
@@ -499,7 +499,7 @@ public class TestWALReplay {
     region.close(true);
     wal.close();
     runWALSplit(this.conf);
-    HLog wal2 = createWAL(this.conf);
+    WALService wal2 = createWAL(this.conf);
     HRegion region2 = HRegion.openHRegion(conf, this.fs, hbaseRootDir, hri, htd, wal2);
     long seqid2 = region2.getOpenSeqNum();
     assertTrue(seqid + result.size() < seqid2);
@@ -518,7 +518,7 @@ public class TestWALReplay {
     wal2.sync();
     // Set down maximum recovery so we dfsclient doesn't linger retrying something
     // long gone.
-    HBaseTestingUtility.setMaxRecoveryErrorCount(((FSHLog) wal2).getOutputStream(), 1);
+    HBaseTestingUtility.setMaxRecoveryErrorCount(((AbstractWAL) wal2).getOutputStream(), 1);
     final Configuration newConf = HBaseConfiguration.create(this.conf);
     User user = HBaseTestingUtility.getDifferentUser(newConf,
       tableName.getNameAsString());
@@ -528,7 +528,7 @@ public class TestWALReplay {
         runWALSplit(newConf);
         FileSystem newFS = FileSystem.get(newConf);
         // Make a new wal for new region open.
-        HLog wal3 = createWAL(newConf);
+        WALService wal3 = createWAL(newConf);
         final AtomicInteger countOfRestoredEdits = new AtomicInteger(0);
         HRegion region3 = new HRegion(basedir, wal3, newFS, newConf, hri, htd, null) {
           @Override
@@ -589,7 +589,7 @@ public class TestWALReplay {
     // Write countPerFamily edits into the three families.  Do a flush on one
     // of the families during the load of edits so its seqid is not same as
     // others to test we do right thing when different seqids.
-    HLog wal = createWAL(this.conf);
+    WALService wal = createWAL(this.conf);
     HRegion region = HRegion.openHRegion(this.conf, this.fs, hbaseRootDir, hri, htd, wal);
     long seqid = region.getOpenSeqNum();
     for (HColumnDescriptor hcd: htd.getFamilies()) {
@@ -622,7 +622,7 @@ public class TestWALReplay {
 
     // Let us try to split and recover
     runWALSplit(this.conf);
-    HLog wal2 = createWAL(this.conf);
+    WALService wal2 = createWAL(this.conf);
     HRegion region2 = HRegion.openHRegion(this.conf, this.fs, hbaseRootDir, hri, htd, wal2);
     long seqid2 = region2.getOpenSeqNum();
     assertTrue(seqid + result.size() < seqid2);
@@ -672,7 +672,7 @@ public class TestWALReplay {
     // Write countPerFamily edits into the three families. Do a flush on one
     // of the families during the load of edits so its seqid is not same as
     // others to test we do right thing when different seqids.
-    HLog wal = createWAL(this.conf);
+    WALService wal = createWAL(this.conf);
     RegionServerServices rsServices = Mockito.mock(RegionServerServices.class);
     Mockito.doReturn(false).when(rsServices).isAborted();
     when(rsServices.getServerName()).thenReturn(ServerName.valueOf("foo", 10, 10));
@@ -729,7 +729,7 @@ public class TestWALReplay {
 
     // Let us try to split and recover
     runWALSplit(this.conf);
-    HLog wal2 = createWAL(this.conf);
+    WALService wal2 = createWAL(this.conf);
     Mockito.doReturn(false).when(rsServices).isAborted();
     HRegion region2 =
       HRegion.openHRegion(this.hbaseRootDir, hri, htd, wal2, this.conf, rsServices, null);
@@ -768,7 +768,7 @@ public class TestWALReplay {
     HRegion region2 = HRegion.createHRegion(hri,
             hbaseRootDir, this.conf, htd);
     HRegion.closeHRegion(region2);
-    final HLog wal = createWAL(this.conf);
+    final WALService wal = createWAL(this.conf);
     final byte[] rowName = tableName.getName();
     final byte[] regionName = hri.getEncodedNameAsBytes();
     final AtomicLong sequenceId = new AtomicLong(1);
@@ -802,7 +802,7 @@ public class TestWALReplay {
     wal.sync();
     // Set down maximum recovery so we dfsclient doesn't linger retrying something
     // long gone.
-    HBaseTestingUtility.setMaxRecoveryErrorCount(((FSHLog) wal).getOutputStream(), 1);
+    HBaseTestingUtility.setMaxRecoveryErrorCount(((AbstractWAL) wal).getOutputStream(), 1);
     // Make a new conf and a new fs for the splitter to run on so we can take
     // over old wal.
     final Configuration newConf = HBaseConfiguration.create(this.conf);
@@ -816,14 +816,14 @@ public class TestWALReplay {
         // 100k seems to make for about 4 flushes during HRegion#initialize.
         newConf.setInt(HConstants.HREGION_MEMSTORE_FLUSH_SIZE, 1024 * 100);
         // Make a new wal for new region.
-        HLog newWal = createWAL(newConf);
+        WALService newWal = createWAL(newConf);
         final AtomicInteger flushcount = new AtomicInteger(0);
         try {
           final HRegion region =
               new HRegion(basedir, newWal, newFS, newConf, hri, htd, null) {
             @Override
             protected FlushResult internalFlushcache(
-                final HLog wal, final long myseqid, MonitoredTask status)
+                final WALService wal, final long myseqid, MonitoredTask status)
             throws IOException {
               LOG.info("InternalFlushCache Invoked");
               FlushResult fs = super.internalFlushcache(wal, myseqid,
@@ -905,7 +905,7 @@ public class TestWALReplay {
     boolean doCompleteCacheFlush = false;
 
     public MockHLog(FileSystem fs, Path rootDir, String logName, Configuration conf) throws IOException {
-      super(fs, rootDir, logName, conf);
+      super(fs, rootDir, logName, HConstants.HREGION_OLDLOGDIR_NAME, conf, null, true, null, false);
     }
 
     @Override
@@ -928,7 +928,7 @@ public class TestWALReplay {
     MockHLog wal = new MockHLog(FileSystem.get(conf), hbaseRootDir, logName, conf);
     // Set down maximum recovery so we dfsclient doesn't linger retrying something
     // long gone.
-    HBaseTestingUtility.setMaxRecoveryErrorCount(((FSHLog) wal).getOutputStream(), 1);
+    HBaseTestingUtility.setMaxRecoveryErrorCount(((AbstractWAL) wal).getOutputStream(), 1);
     return wal;
   }
 
@@ -969,7 +969,7 @@ public class TestWALReplay {
   }
 
   private void addWALEdits(final TableName tableName, final HRegionInfo hri, final byte[] rowName,
-      final byte[] family, final int count, EnvironmentEdge ee, final HLog wal,
+      final byte[] family, final int count, EnvironmentEdge ee, final WALService wal,
       final HTableDescriptor htd, final AtomicLong sequenceId)
   throws IOException {
     String familyStr = Bytes.toString(family);
@@ -1029,12 +1029,12 @@ public class TestWALReplay {
    * @return WAL with retries set down from 5 to 1 only.
    * @throws IOException
    */
-  private HLog createWAL(final Configuration c) throws IOException {
-    HLog wal = HLogFactory.createHLog(FileSystem.get(c),
+  private WALService createWAL(final Configuration c) throws IOException {
+    WALService wal = HLogFactory.createHLog(FileSystem.get(c),
         hbaseRootDir, logName, c);
     // Set down maximum recovery so we dfsclient doesn't linger retrying something
     // long gone.
-    HBaseTestingUtility.setMaxRecoveryErrorCount(((FSHLog) wal).getOutputStream(), 1);
+    HBaseTestingUtility.setMaxRecoveryErrorCount(((AbstractWAL) wal).getOutputStream(), 1);
     return wal;
   }
 

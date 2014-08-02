@@ -33,7 +33,7 @@ import org.apache.hadoop.hbase.util.FSUtils;
  * custom dictionary compression.
  */
 @InterfaceAudience.Private
-public abstract class WriterBase implements HLog.Writer {
+public abstract class WriterBase implements WAL.Writer {
 
   protected CompressionContext compressionContext;
   protected Configuration conf;

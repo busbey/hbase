@@ -48,7 +48,7 @@ import org.apache.hadoop.hbase.filter.FilterList.Operator;
 import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.regionserver.InternalScanner;
 import org.apache.hadoop.hbase.regionserver.RegionScanner;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.hbase.testclassification.FilterTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -217,7 +217,7 @@ public class TestFilter {
 
   @After
   public void tearDown() throws Exception {
-    HLog hlog = region.getLog();
+    WALService hlog = region.getLog();
     region.close();
     hlog.closeAndDelete();
   }
@@ -1488,7 +1488,7 @@ public class TestFilter {
     assertEquals(2, resultCount);
     scanner.close();
 
-    HLog hlog = testRegion.getLog();
+    WALService hlog = testRegion.getLog();
     testRegion.close();
     hlog.closeAndDelete();
   }
@@ -2096,7 +2096,7 @@ public class TestFilter {
       results.clear();
     }
     assertFalse(scanner.next(results));
-    HLog hlog = testRegion.getLog();
+    WALService hlog = testRegion.getLog();
     testRegion.close();
     hlog.closeAndDelete();
   }      

@@ -123,7 +123,7 @@ import org.apache.hadoop.hbase.quotas.RegionServerQuotaManager;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionProgress;
 import org.apache.hadoop.hbase.regionserver.handler.CloseMetaHandler;
 import org.apache.hadoop.hbase.regionserver.handler.CloseRegionHandler;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
 import org.apache.hadoop.hbase.regionserver.wal.HLogUtil;
 import org.apache.hadoop.hbase.regionserver.wal.WALActionsListener;
@@ -331,10 +331,10 @@ public class HRegionServer extends HasThread implements
 
   // HLog and HLog roller. log is protected rather than private to avoid
   // eclipse warning when accessed by inner classes
-  protected volatile HLog hlog;
+  protected volatile WALService hlog;
   // The meta updates are written to a different hlog. If this
   // regionserver holds meta regions, then this field will be non-null.
-  protected volatile HLog hlogForMeta;
+  protected volatile WALService hlogForMeta;
 
   LogRoller hlogRoller;
   LogRoller metaHLogRoller;
@@ -1501,7 +1501,7 @@ public class HRegionServer extends HasThread implements
    * @return A WAL instance.
    * @throws IOException
    */
-  private HLog setupWALAndReplication() throws IOException {
+  private WALService setupWALAndReplication() throws IOException {
     final Path oldLogDir = new Path(rootDir, HConstants.HREGION_OLDLOGDIR_NAME);
     final String logName
       = HLogUtil.getHLogDirectoryName(this.serverName.toString());
@@ -1520,7 +1520,7 @@ public class HRegionServer extends HasThread implements
     return instantiateHLog(rootDir, logName);
   }
 
-  private HLog getMetaWAL() throws IOException {
+  private WALService getMetaWAL() throws IOException {
     if (this.hlogForMeta != null) return this.hlogForMeta;
     final String logName = HLogUtil.getHLogDirectoryName(this.serverName.toString());
     Path logdir = new Path(rootDir, logName);
@@ -1537,7 +1537,7 @@ public class HRegionServer extends HasThread implements
    * @return WAL instance.
    * @throws IOException
    */
-  protected HLog instantiateHLog(Path rootdir, String logName) throws IOException {
+  protected WALService instantiateHLog(Path rootdir, String logName) throws IOException {
     return HLogFactory.createHLog(this.fs.getBackingFs(), rootdir, logName, this.conf,
       getWALActionListeners(), this.serverName.toString());
   }
@@ -1546,7 +1546,7 @@ public class HRegionServer extends HasThread implements
    * Called by {@link #instantiateHLog(Path, String)} setting up WAL instance.
    * Add any {@link WALActionsListener}s you want inserted before WAL startup.
    * @return List of WALActionsListener that will be passed in to
-   * {@link org.apache.hadoop.hbase.regionserver.wal.FSHLog} on construction.
+   * {@link org.apache.hadoop.hbase.regionserver.wal.AbstractWAL} on construction.
    */
   protected List<WALActionsListener> getWALActionListeners() {
     List<WALActionsListener> listeners = new ArrayList<WALActionsListener>();
@@ -1742,7 +1742,7 @@ public class HRegionServer extends HasThread implements
     return true;
   }
 
-  public HLog getWAL() {
+  public WALService getWAL() {
     try {
       return getWAL(null);
     } catch (IOException e) {
@@ -1752,7 +1752,7 @@ public class HRegionServer extends HasThread implements
   }
 
   @Override
-  public HLog getWAL(HRegionInfo regionInfo) throws IOException {
+  public WALService getWAL(HRegionInfo regionInfo) throws IOException {
     //TODO: at some point this should delegate to the HLogFactory
     //currently, we don't care about the region as much as we care about the
     //table.. (hence checking the tablename below)
@@ -2695,7 +2695,7 @@ public class HRegionServer extends HasThread implements
     HRegion toReturn = this.onlineRegions.remove(r.getRegionInfo().getEncodedName());
 
     if (destination != null) {
-      HLog wal = getWAL();
+      WALService wal = getWAL();
       long closeSeqNum = wal.getEarliestMemstoreSeqNum(r.getRegionInfo().getEncodedNameAsBytes());
       if (closeSeqNum == HConstants.NO_SEQNUM) {
         // No edits in WAL for this region; get the sequence number when the region was opened.

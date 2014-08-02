@@ -32,7 +32,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
 import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
 import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
@@ -44,7 +44,7 @@ import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 
 /**
- * Simple {@link InputFormat} for {@link HLog} files.
+ * Simple {@link InputFormat} for {@link WAL} files.
  */
 @InterfaceAudience.Public
 public class HLogInputFormat extends InputFormat<HLogKey, WALEdit> {
@@ -54,7 +54,7 @@ public class HLogInputFormat extends InputFormat<HLogKey, WALEdit> {
   public static final String END_TIME_KEY = "hlog.end.time";
 
   /**
-   * {@link InputSplit} for {@link HLog} files. Each split represent
+   * {@link InputSplit} for {@link WAL} files. Each split represent
    * exactly one log file.
    */
   static class HLogSplit extends InputSplit implements Writable {
@@ -128,11 +128,11 @@ public class HLogInputFormat extends InputFormat<HLogKey, WALEdit> {
   }
 
   /**
-   * {@link RecordReader} for an {@link HLog} file.
+   * {@link RecordReader} for an {@link WAL} file.
    */
   static class HLogRecordReader extends RecordReader<HLogKey, WALEdit> {
-    private HLog.Reader reader = null;
-    private HLog.Entry currentEntry = new HLog.Entry();
+    private WAL.Reader reader = null;
+    private WAL.Entry currentEntry = new WAL.Entry();
     private long startTime;
     private long endTime;
 
@@ -158,7 +158,7 @@ public class HLogInputFormat extends InputFormat<HLogKey, WALEdit> {
     public boolean nextKeyValue() throws IOException, InterruptedException {
       if (reader == null) return false;
 
-      HLog.Entry temp;
+      WAL.Entry temp;
       long i = -1;
       do {
         // skip older entries

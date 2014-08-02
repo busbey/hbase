@@ -39,8 +39,10 @@ import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.mapreduce.HLogInputFormat.HLogRecordReader;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.AbstractWAL;
+import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
+import org.apache.hadoop.hbase.regionserver.wal.HLogUtilsForTests;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 import org.apache.hadoop.hbase.testclassification.MapReduceTests;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
@@ -117,7 +119,7 @@ public class TestHLogRecordReader {
    */
   @Test
   public void testPartialRead() throws Exception {
-    HLog log = HLogFactory.createHLog(fs, hbaseDir, logName, conf);
+    AbstractWAL log = (AbstractWAL)HLogFactory.createHLog(fs, hbaseDir, logName, conf);
     // This test depends on timestamp being millisecond based and the filename of the WAL also
     // being millisecond based.
     long ts = System.currentTimeMillis();
@@ -128,9 +130,9 @@ public class TestHLogRecordReader {
     edit = new WALEdit();
     edit.add(new KeyValue(rowName, family, Bytes.toBytes("2"), ts+1, value));
     log.append(info, tableName, edit, ts+1, htd, sequenceId);
-    LOG.info("Before 1st WAL roll " + log.getFilenum());
+    LOG.info("Before 1st WAL roll " + HLogUtilsForTests.extractFileNumFromPath(log.getCurrentFileName()));
     log.rollWriter();
-    LOG.info("Past 1st WAL roll " + log.getFilenum());
+    LOG.info("Past 1st WAL roll " + HLogUtilsForTests.extractFileNumFromPath(log.getCurrentFileName()));
 
     Thread.sleep(1);
     long ts1 = System.currentTimeMillis();
@@ -142,7 +144,7 @@ public class TestHLogRecordReader {
     edit.add(new KeyValue(rowName, family, Bytes.toBytes("4"), ts1+2, value));
     log.append(info, tableName, edit, ts1+2, htd, sequenceId);
     log.close();
-    LOG.info("Closed WAL " + log.getFilenum());
+    LOG.info("Closed WAL " + HLogUtilsForTests.extractFileNumFromPath(log.getCurrentFileName()));
 
  
     HLogInputFormat input = new HLogInputFormat();
@@ -173,7 +175,7 @@ public class TestHLogRecordReader {
    */
   @Test
   public void testHLogRecordReader() throws Exception {
-    HLog log = HLogFactory.createHLog(fs, hbaseDir, logName, conf);
+    WALService log = HLogFactory.createHLog(fs, hbaseDir, logName, conf);
     byte [] value = Bytes.toBytes("value");
     final AtomicLong sequenceId = new AtomicLong(0);
     WALEdit edit = new WALEdit();

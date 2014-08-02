@@ -55,7 +55,6 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.Syncable;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.HBaseConfiguration;
@@ -106,7 +105,7 @@ import com.lmax.disruptor.dsl.ProducerType;
  * org.apache.hadoop.fs.Path, org.apache.hadoop.conf.Configuration)}.
  */
 @InterfaceAudience.Private
-class FSHLog implements HLog, Syncable {
+class FSHLog extends AbstractWAL {
   // IMPLEMENTATION NOTES:
   //
   // At the core is a ring buffer.  Our ring buffer is the LMAX Disruptor.  It tries to
@@ -176,12 +175,6 @@ class FSHLog implements HLog, Syncable {
    */
   private final Map<Thread, SyncFuture> syncFuturesByHandler;
 
-  private final FileSystem fs;
-  private final Path fullPathLogDir;
-  private final Path fullPathOldLogDir;
-  private final Configuration conf;
-  private final String logFilePrefix;
-
   /**
    * The highest known outstanding unsync'd WALEdit sequence number where sequence number is the
    * ring buffer sequence.  Maintained by the ring buffer consumer.
@@ -194,8 +187,6 @@ class FSHLog implements HLog, Syncable {
    * come in for it.  Maintained by the syncing threads.
    */
   private final AtomicLong highestSyncedSequence = new AtomicLong(0);
-
-  private WALCoprocessorHost coprocessorHost;
 
   /**
    * FSDataOutputStream associated with the current SequenceFile.writer
@@ -244,17 +235,7 @@ class FSHLog implements HLog, Syncable {
    */
   private final ReentrantLock rollWriterLock = new ReentrantLock(true);
 
-  // Listeners that are called on WAL events.
-  private final List<WALActionsListener> listeners =
-    new CopyOnWriteArrayList<WALActionsListener>();
-
   private volatile boolean closed = false;
-
-  /**
-   * Set when this WAL is for meta only (we run a WAL for all regions except meta -- it has its
-   * own dedicated WAL).
-   */
-  private final boolean forMeta;
 
   // The timestamp (in ms) when the log file was created.
   private final AtomicLong filenum = new AtomicLong(-1);
@@ -419,24 +400,10 @@ class FSHLog implements HLog, Syncable {
       final List<WALActionsListener> listeners,
       final boolean failIfLogDirExists, final String prefix, boolean forMeta)
   throws IOException {
-    super();
-    this.fs = fs;
-    this.fullPathLogDir = new Path(rootDir, logDir);
-    this.fullPathOldLogDir = new Path(rootDir, oldLogDir);
-    this.forMeta = forMeta;
-    this.conf = conf;
-
-    // Register listeners.  TODO: Should this exist anymore?  We have CPs?
-    if (listeners != null) {
-      for (WALActionsListener i: listeners) {
-        registerWALActionsListener(i);
-      }
-    }
+    super(fs, rootDir, logDir, oldLogDir, conf, listeners, failIfLogDirExists, prefix, forMeta);
 
     // Get size to roll log at. Roll at 95% of HDFS block size so we avoid crossing HDFS blocks
     // (it costs a little x'ing bocks)
-    long blocksize = this.conf.getLong("hbase.regionserver.hlog.blocksize",
-      FSUtils.getDefaultBlockSize(this.fs, this.fullPathLogDir));
     this.logrollsize =
       (long)(blocksize * conf.getFloat("hbase.regionserver.logroll.multiplier", 0.95f));
 
@@ -447,29 +414,12 @@ class FSHLog implements HLog, Syncable {
       conf.getInt("hbase.regionserver.hlog.lowreplication.rolllimit", 5);
     this.enabled = conf.getBoolean("hbase.regionserver.hlog.enabled", true);
     this.closeErrorsTolerated = conf.getInt("hbase.regionserver.logroll.errors.tolerated", 0);
-    // If prefix is null||empty then just name it hlog
-    this.logFilePrefix =
-      prefix == null || prefix.isEmpty() ? "hlog" : URLEncoder.encode(prefix, "UTF8");
     int maxHandlersCount = conf.getInt(HConstants.REGION_SERVER_HANDLER_COUNT, 200);
 
     LOG.info("WAL configuration: blocksize=" + StringUtils.byteDesc(blocksize) +
       ", rollsize=" + StringUtils.byteDesc(this.logrollsize) +
       ", enabled=" + this.enabled + ", prefix=" + this.logFilePrefix + ", logDir=" +
       this.fullPathLogDir + ", oldLogDir=" + this.fullPathOldLogDir);
-
-    boolean dirExists = false;
-    if (failIfLogDirExists && (dirExists = this.fs.exists(fullPathLogDir))) {
-      throw new IOException("Target HLog directory already exists: " + fullPathLogDir);
-    }
-    if (!dirExists && !fs.mkdirs(fullPathLogDir)) {
-      throw new IOException("Unable to mkdir " + fullPathLogDir);
-    }
-
-    if (!fs.exists(this.fullPathOldLogDir)) {
-      if (!fs.mkdirs(this.fullPathOldLogDir)) {
-        throw new IOException("Unable to mkdir " + this.fullPathOldLogDir);
-      }
-    }
 
     // rollWriter sets this.hdfs_out if it can.
     rollWriter();
@@ -482,7 +432,6 @@ class FSHLog implements HLog, Syncable {
     this.getNumCurrentReplicas = getGetNumCurrentReplicas(this.hdfs_out);
     this.getPipeLine = getGetPipeline(this.hdfs_out);
 
-    this.coprocessorHost = new WALCoprocessorHost(this, conf);
     this.metrics = new MetricsWAL();
 
     // This is the 'writer' -- a single threaded executor.  This single thread 'consumes' what is
@@ -516,49 +465,6 @@ class FSHLog implements HLog, Syncable {
   }
 
   /**
-   * Find the 'getNumCurrentReplicas' on the passed <code>os</code> stream.
-   * @return Method or null.
-   */
-  private static Method getGetNumCurrentReplicas(final FSDataOutputStream os) {
-    // TODO: Remove all this and use the now publically available
-    // HdfsDataOutputStream#getCurrentBlockReplication()
-    Method m = null;
-    if (os != null) {
-      Class<? extends OutputStream> wrappedStreamClass = os.getWrappedStream().getClass();
-      try {
-        m = wrappedStreamClass.getDeclaredMethod("getNumCurrentReplicas", new Class<?>[] {});
-        m.setAccessible(true);
-      } catch (NoSuchMethodException e) {
-        LOG.info("FileSystem's output stream doesn't support getNumCurrentReplicas; " +
-         "HDFS-826 not available; fsOut=" + wrappedStreamClass.getName());
-      } catch (SecurityException e) {
-        LOG.info("No access to getNumCurrentReplicas on FileSystems's output stream; HDFS-826 " +
-          "not available; fsOut=" + wrappedStreamClass.getName(), e);
-        m = null; // could happen on setAccessible()
-      }
-    }
-    if (m != null) {
-      if (LOG.isTraceEnabled()) LOG.trace("Using getNumCurrentReplicas");
-    }
-    return m;
-  }
-
-  @Override
-  public void registerWALActionsListener(final WALActionsListener listener) {
-    this.listeners.add(listener);
-  }
-
-  @Override
-  public boolean unregisterWALActionsListener(final WALActionsListener listener) {
-    return this.listeners.remove(listener);
-  }
-
-  @Override
-  public long getFilenum() {
-    return this.filenum.get();
-  }
-
-  /**
    * Method used internal to this class and for tests only.
    * @return The wrapped stream our writer is using; its not the
    * writer's 'out' FSDatoOutputStream but the stream that this 'out' wraps
@@ -566,6 +472,7 @@ class FSHLog implements HLog, Syncable {
    *
    * usage: see TestLogRolling.java
    */
+  @Override
   OutputStream getOutputStream() {
     return this.hdfs_out.getWrappedStream();
   }
@@ -577,10 +484,10 @@ class FSHLog implements HLog, Syncable {
 
   private Path getNewPath() throws IOException {
     this.filenum.set(System.currentTimeMillis());
-    Path newPath = computeFilename();
+    Path newPath = getCurrentFileName();
     while (fs.exists(newPath)) {
       this.filenum.incrementAndGet();
-      newPath = computeFilename();
+      newPath = getCurrentFileName();
     }
     return newPath;
   }
@@ -966,7 +873,7 @@ class FSHLog implements HLog, Syncable {
    */
   protected Path computeFilename(final long filenum) {
     this.filenum.set(filenum);
-    return computeFilename();
+    return getCurrentFileName();
   }
 
   /**
@@ -974,13 +881,14 @@ class FSHLog implements HLog, Syncable {
    * using the current HLog file-number
    * @return Path
    */
-  protected Path computeFilename() {
+  @Override
+  public Path getCurrentFileName() {
     if (this.filenum.get() < 0) {
       throw new RuntimeException("hlog file number can't be < 0");
     }
-    String child = logFilePrefix + "." + filenum;
+    String child = logFilePrefix + WAL.WAL_FILE_NAME_DELIMITER + filenum;
     if (forMeta) {
-      child += HLog.META_HLOG_FILE_EXTN;
+      child += WAL.META_HLOG_FILE_EXTN;
     }
     return new Path(fullPathLogDir, child);
   }
@@ -996,13 +904,14 @@ class FSHLog implements HLog, Syncable {
   protected long getFileNumFromFileName(Path fileName) {
     if (fileName == null) throw new IllegalArgumentException("file name can't be null");
     // The path should start with dir/<prefix>.
-    String prefixPathStr = new Path(fullPathLogDir, logFilePrefix + ".").toString();
+    String prefixPathStr = new Path(fullPathLogDir, logFilePrefix + WAL.WAL_FILE_NAME_DELIMITER).toString();
     if (!fileName.toString().startsWith(prefixPathStr)) {
-      throw new IllegalArgumentException("The log file " + fileName + " doesn't belong to" +
-      		" this regionserver " + prefixPathStr);
+      throw new IllegalArgumentException("The log file " + fileName + " doesn't belong to"
+          + " this regionserver " + prefixPathStr);
     }
     String chompedPath = fileName.toString().substring(prefixPathStr.length());
-    if (forMeta) chompedPath = chompedPath.substring(0, chompedPath.indexOf(META_HLOG_FILE_EXTN));
+    if (forMeta) chompedPath = chompedPath.substring(0,
+      chompedPath.indexOf(WAL.META_HLOG_FILE_EXTN));
     return Long.parseLong(chompedPath);
   }
 
@@ -1503,10 +1412,6 @@ class FSHLog implements HLog, Syncable {
     return 0;
   }
 
-  boolean canGetCurReplicas() {
-    return this.getNumCurrentReplicas != null;
-  }
-
   @Override
   public void hsync() throws IOException {
     TraceScope scope = Trace.startSpan("FSHLog.hsync");
@@ -1564,7 +1469,8 @@ class FSHLog implements HLog, Syncable {
   }
 
   /** @return How many items have been added to the log */
-  int getNumEntries() {
+  @Override //TODO  is it okay to expose it?
+  public int getNumEntries() {
     return numEntries.get();
   }
 
@@ -1650,23 +1556,6 @@ class FSHLog implements HLog, Syncable {
       return lowReplicationRollEnabled;
   }
 
-  /**
-   * Get the directory we are making logs in.
-   *
-   * @return dir
-   */
-  protected Path getDir() {
-    return fullPathLogDir;
-  }
-
-  static Path getHLogArchivePath(Path oldLogDir, Path p) {
-    return new Path(oldLogDir, p.getName());
-  }
-
-  static String formatRecoveredEditsFileName(final long seqid) {
-    return String.format("%019d", seqid);
-  }
-
   public static final long FIXED_OVERHEAD = ClassSize.align(
     ClassSize.OBJECT + (5 * ClassSize.REFERENCE) +
     ClassSize.ATOMIC_INTEGER + Bytes.SIZEOF_INT + (3 * Bytes.SIZEOF_LONG));
@@ -1686,10 +1575,6 @@ class FSHLog implements HLog, Syncable {
     HLogSplitter.split(baseDir, p, oldLogDir, fs, conf);
   }
 
-  @Override
-  public WALCoprocessorHost getCoprocessorHost() {
-    return coprocessorHost;
-  }
 
   @Override
   public long getEarliestMemstoreSeqNum(byte[] encodedRegionName) {
@@ -1941,7 +1826,7 @@ class FSHLog implements HLog, Syncable {
 
       long start = EnvironmentEdgeManager.currentTime();
       byte [] encodedRegionName = entry.getKey().getEncodedRegionName();
-      long regionSequenceId = HLog.NO_SEQUENCE_ID;
+      long regionSequenceId = WAL.NO_SEQUENCE_ID;
       try {
         // We are about to append this edit; update the region-scoped sequence number.  Do it
         // here inside this single appending/writing thread.  Events are ordered on the ringbuffer

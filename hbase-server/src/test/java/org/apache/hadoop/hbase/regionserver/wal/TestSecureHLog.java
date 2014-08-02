@@ -65,9 +65,9 @@ public class TestSecureHLog {
     conf.set(HConstants.CRYPTO_KEYPROVIDER_CONF_KEY, KeyProviderForTesting.class.getName());
     conf.set(HConstants.CRYPTO_MASTERKEY_NAME_CONF_KEY, "hbase");
     conf.setClass("hbase.regionserver.hlog.reader.impl", SecureProtobufLogReader.class,
-      HLog.Reader.class);
+      WAL.Reader.class);
     conf.setClass("hbase.regionserver.hlog.writer.impl", SecureProtobufLogWriter.class,
-      HLog.Writer.class);
+      WAL.Writer.class);
     conf.setBoolean(HConstants.ENABLE_WAL_ENCRYPTION, true);
   }
 
@@ -87,14 +87,15 @@ public class TestSecureHLog {
     final AtomicLong sequenceId = new AtomicLong(1);
 
     // Write the WAL
-    HLog wal = new FSHLog(fs, TEST_UTIL.getDataTestDir(), logDir.toString(),
+    WALService wal = HLogFactory.createHLog(fs, TEST_UTIL.getDataTestDir(), logDir.toString(),
       TEST_UTIL.getConfiguration());
+
     for (int i = 0; i < total; i++) {
       WALEdit kvs = new WALEdit();
       kvs.add(new KeyValue(row, family, Bytes.toBytes(i), value));
       wal.append(regioninfo, tableName, kvs, System.currentTimeMillis(), htd, sequenceId);
     }
-    final Path walPath = ((FSHLog) wal).computeFilename();
+    final Path walPath = ((AbstractWAL) wal).getCurrentFileName();
     wal.close();
 
     // Insure edits are not plaintext
@@ -106,10 +107,10 @@ public class TestSecureHLog {
     assertFalse("Cells appear to be plaintext", Bytes.contains(fileData, value));
 
     // Confirm the WAL can be read back
-    HLog.Reader reader = HLogFactory.createReader(TEST_UTIL.getTestFileSystem(), walPath,
+    WAL.Reader reader = HLogFactory.createReader(TEST_UTIL.getTestFileSystem(), walPath,
       TEST_UTIL.getConfiguration());
     int count = 0;
-    HLog.Entry entry = new HLog.Entry();
+    WAL.Entry entry = new WAL.Entry();
     while (reader.next(entry) != null) {
       count++;
       List<Cell> cells = entry.getEdit().getCells();
