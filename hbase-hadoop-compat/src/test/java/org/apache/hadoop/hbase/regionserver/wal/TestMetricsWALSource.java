@@ -18,19 +18,15 @@
 
 package org.apache.hadoop.hbase.regionserver.wal;
 
+import org.apache.hadoop.hbase.CompatibilitySingletonFactory;
+import org.junit.Test;
 
-import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.testclassification.LargeTests;
-import org.apache.hadoop.hbase.testclassification.RegionServerTests;
-import org.junit.BeforeClass;
-import org.junit.experimental.categories.Category;
+public class TestMetricsWALSource {
 
-@Category({RegionServerTests.class, LargeTests.class})
-public class TestHLogSplitCompressed extends TestHLogSplit {
+  @Test(expected=RuntimeException.class)
+  public void testGetInstanceNoHadoopCompat() throws Exception {
+    //This should throw an exception because there is no compat lib on the class path.
+    CompatibilitySingletonFactory.getInstance(MetricsWALSource.class);
 
-  @BeforeClass
-  public static void setUpBeforeClass() throws Exception {
-    TestHLogSplit.setUpBeforeClass();
-    TEST_UTIL.getConfiguration().setBoolean(HConstants.ENABLE_WAL_COMPRESSION, true);
   }
 }

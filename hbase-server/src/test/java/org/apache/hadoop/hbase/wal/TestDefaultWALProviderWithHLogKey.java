@@ -1,5 +1,4 @@
 /**
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -16,25 +15,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hadoop.hbase.regionserver.wal;
+package org.apache.hadoop.hbase.wal;
 
-import java.io.IOException;
 
-import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.testclassification.LargeTests;
+import org.apache.hadoop.hbase.testclassification.RegionServerTests;
+import org.junit.experimental.categories.Category;
 
-public class InstrumentedSequenceFileLogWriter extends ProtobufLogWriter {
+import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
 
-  public InstrumentedSequenceFileLogWriter() {
-    super();
-  }
-
-  public static boolean activateFailure = false;
+@Category({RegionServerTests.class, LargeTests.class})
+public class TestDefaultWALProviderWithHLogKey extends TestDefaultWALProvider {
   @Override
-    public void append(HLog.Entry entry) throws IOException {
-      super.append(entry);
-      if (activateFailure && Bytes.equals(entry.getKey().getEncodedRegionName(), "break".getBytes())) {
-        System.out.println(getClass().getName() + ": I will throw an exception now...");
-        throw(new IOException("This exception is instrumented and should only be thrown for testing"));
-      }
-    }
+  WALKey getWalKey(final byte[] info, final TableName tableName, final long timestamp) {
+    return new HLogKey(info, tableName, timestamp);
+  }
 }

@@ -15,24 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hadoop.hbase.regionserver;
 
-import java.io.IOException;
+package org.apache.hadoop.hbase.wal;
 
-import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.hbase.HRegionInfo;
-import org.apache.hadoop.hbase.Server;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
 
-@InterfaceAudience.Private
-class MetaLogRoller extends LogRoller {
-  public MetaLogRoller(Server server, RegionServerServices services) {
-    super(server, services);
-  }
-  @Override
-  protected HLog getWAL() throws IOException {
-    //The argument to getWAL below could either be HRegionInfo.FIRST_META_REGIONINFO or
-    //HRegionInfo.ROOT_REGIONINFO. Both these share the same WAL.
-    return services.getWAL(HRegionInfo.FIRST_META_REGIONINFO);
+import org.apache.hadoop.hbase.HConstants;
+import org.apache.hadoop.hbase.testclassification.LargeTests;
+import org.apache.hadoop.hbase.testclassification.RegionServerTests;
+import org.junit.BeforeClass;
+import org.junit.experimental.categories.Category;
+
+@Category({RegionServerTests.class, LargeTests.class})
+public class TestWALSplitCompressed extends TestWALSplit {
+
+  @BeforeClass
+  public static void setUpBeforeClass() throws Exception {
+    TestWALSplit.setUpBeforeClass();
+    TEST_UTIL.getConfiguration().setBoolean(HConstants.ENABLE_WAL_COMPRESSION, true);
   }
 }
