@@ -43,7 +43,7 @@ import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Durability;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Scan;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
@@ -69,7 +69,7 @@ public class TestRegionMergeTransaction {
   private HRegion region_a;
   private HRegion region_b;
   private HRegion region_c;
-  private HLog wal;
+  private WALService wal;
   private FileSystem fs;
   // Start rows of region_a,region_b,region_c
   private static final byte[] STARTROW_A = new byte[] { 'a', 'a', 'a' };
@@ -401,7 +401,7 @@ public class TestRegionMergeTransaction {
   private class MockedFailedMergedRegionOpen extends IOException {
   }
 
-  private HRegion createRegion(final Path testdir, final HLog wal,
+  private HRegion createRegion(final Path testdir, final WALService wal,
       final byte[] startrow, final byte[] endrow)
       throws IOException {
     // Make a region with start and end keys.

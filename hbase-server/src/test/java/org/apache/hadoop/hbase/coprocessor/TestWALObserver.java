@@ -48,7 +48,7 @@ import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.regionserver.HRegion;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
 import org.apache.hadoop.hbase.regionserver.wal.HLogSplitter;
 import org.apache.hadoop.hbase.regionserver.wal.WALCoprocessorHost;
@@ -155,7 +155,7 @@ public class TestWALObserver {
     fs.mkdirs(new Path(basedir, hri.getEncodedName()));
     final AtomicLong sequenceId = new AtomicLong(0);
 
-    HLog log = HLogFactory.createHLog(this.fs, hbaseRootDir,
+    WALService log = HLogFactory.createHLog(this.fs, hbaseRootDir,
         TestWALObserver.class.getName(), this.conf);
     SampleRegionWALObserver cp = getCoprocessor(log);
 
@@ -253,7 +253,7 @@ public class TestWALObserver {
     final Configuration newConf = HBaseConfiguration.create(this.conf);
 
     // HLog wal = new HLog(this.fs, this.dir, this.oldLogDir, this.conf);
-    HLog wal = createWAL(this.conf);
+    WALService wal = createWAL(this.conf);
     // Put p = creatPutWith2Families(TEST_ROW);
     WALEdit edit = new WALEdit();
     long now = EnvironmentEdgeManager.currentTime();
@@ -278,7 +278,7 @@ public class TestWALObserver {
         LOG.info("WALSplit path == " + p);
         FileSystem newFS = FileSystem.get(newConf);
         // Make a new wal for new region open.
-        HLog wal2 = createWAL(newConf);
+        WALService wal2 = createWAL(newConf);
         HRegion region = HRegion.openHRegion(newConf, FileSystem.get(newConf), hbaseRootDir,
             hri, htd, wal2, TEST_UTIL.getHBaseCluster().getRegionServer(0), null);
         long seqid2 = region.getOpenSeqNum();
@@ -304,12 +304,12 @@ public class TestWALObserver {
    */
   @Test
   public void testWALObserverLoaded() throws Exception {
-    HLog log = HLogFactory.createHLog(fs, hbaseRootDir,
+    WALService log = HLogFactory.createHLog(fs, hbaseRootDir,
         TestWALObserver.class.getName(), conf);
     assertNotNull(getCoprocessor(log));
   }
 
-  private SampleRegionWALObserver getCoprocessor(HLog wal) throws Exception {
+  private SampleRegionWALObserver getCoprocessor(WALService wal) throws Exception {
     WALCoprocessorHost host = wal.getCoprocessorHost();
     Coprocessor c = host.findCoprocessor(SampleRegionWALObserver.class
         .getName());
@@ -380,14 +380,13 @@ public class TestWALObserver {
     return splits.get(0);
   }
 
-  private HLog createWAL(final Configuration c) throws IOException {
+  private WALService createWAL(final Configuration c) throws IOException {
     return HLogFactory.createHLog(FileSystem.get(c), hbaseRootDir, logName, c);
   }
 
-  private void addWALEdits(final TableName tableName, final HRegionInfo hri,
-      final byte[] rowName, final byte[] family, final int count,
-      EnvironmentEdge ee, final HLog wal, final HTableDescriptor htd, final AtomicLong sequenceId)
-      throws IOException {
+  private void addWALEdits(final TableName tableName, final HRegionInfo hri, final byte[] rowName,
+      final byte[] family, final int count, EnvironmentEdge ee, final WALService wal,
+      final HTableDescriptor htd, final AtomicLong sequenceId) throws IOException {
     String familyStr = Bytes.toString(family);
     for (int j = 0; j < count; j++) {
       byte[] qualifierBytes = Bytes.toBytes(Integer.toString(j));

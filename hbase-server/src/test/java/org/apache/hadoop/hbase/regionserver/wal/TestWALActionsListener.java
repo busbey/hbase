@@ -90,7 +90,7 @@ public class TestWALActionsListener {
     List<WALActionsListener> list = new ArrayList<WALActionsListener>();
     list.add(observer);
     DummyWALActionsListener laterobserver = new DummyWALActionsListener();
-    HLog hlog = HLogFactory.createHLog(fs, TEST_UTIL.getDataTestDir(), logName,
+    WALService hlog = HLogFactory.createHLog(fs, TEST_UTIL.getDataTestDir(), logName,
                                        conf, list, null);
     final AtomicLong sequenceId = new AtomicLong(1);
     HRegionInfo hri = new HRegionInfo(TableName.valueOf(SOME_BYTES),

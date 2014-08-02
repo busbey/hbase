@@ -26,7 +26,8 @@ import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.TableName;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
+import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
 import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALActionsListener;
@@ -69,7 +70,7 @@ public class TestReplicationHLogReaderManager {
       HConstants.EMPTY_START_ROW, HConstants.LAST_ROW, false);
   private static final HTableDescriptor htd = new HTableDescriptor(tableName);
 
-  private HLog log;
+  private WALService log;
   private ReplicationHLogReaderManager logManager;
   private PathWatcher pathWatcher;
   private int nbRows;
@@ -147,7 +148,7 @@ public class TestReplicationHLogReaderManager {
     // There's one edit in the log, read it. Reading past it needs to return nulls
     assertNotNull(logManager.openReader(path));
     logManager.seek();
-    HLog.Entry entry = logManager.readNextAndSetPosition();
+    WAL.Entry entry = logManager.readNextAndSetPosition();
     assertNotNull(entry);
     entry = logManager.readNextAndSetPosition();
     assertNull(entry);
@@ -182,7 +183,7 @@ public class TestReplicationHLogReaderManager {
     logManager.openReader(path);
     logManager.seek();
     for (int i = 0; i < nbRows; i++) {
-      HLog.Entry e = logManager.readNextAndSetPosition();
+      WAL.Entry e = logManager.readNextAndSetPosition();
       if (e == null) {
         fail("Should have enough entries");
       }

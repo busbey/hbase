@@ -268,7 +268,7 @@ public class ProtobufLogReader extends ReaderBase {
   }
 
   @Override
-  protected boolean readNext(HLog.Entry entry) throws IOException {
+  protected boolean readNext(WAL.Entry entry) throws IOException {
     while (true) {
       // OriginalPosition might be < 0 on local fs; if so, it is useless to us.
       long originalPosition = this.inputStream.getPos();

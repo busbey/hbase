@@ -30,7 +30,8 @@ import org.apache.hadoop.conf.Configuration;
 
 /**
  * Implements the coprocessor environment and runtime support for coprocessors
- * loaded within a {@link FSHLog}.
+ * loaded within a {@link AbstractWAL}.
+ * TODO: There was FSHLog instance here? Shouldn't be it a WALService?
  */
 @InterfaceAudience.Private
 public class WALCoprocessorHost
@@ -42,10 +43,10 @@ public class WALCoprocessorHost
   static class WALEnvironment extends CoprocessorHost.Environment
     implements WALCoprocessorEnvironment {
 
-    private FSHLog wal;
+    private AbstractWAL wal;
 
     @Override
-    public FSHLog getWAL() {
+    public AbstractWAL getWAL() {
       return wal;
     }
 
@@ -60,19 +61,19 @@ public class WALCoprocessorHost
      */
     public WALEnvironment(Class<?> implClass, final Coprocessor impl,
         final int priority, final int seq, final Configuration conf,
-        final FSHLog hlog) {
+        final AbstractWAL hlog) {
       super(impl, priority, seq, conf);
       this.wal = hlog;
     }
   }
 
-  FSHLog wal;
+  AbstractWAL wal;
   /**
    * Constructor
    * @param log the write ahead log
    * @param conf the configuration
    */
-  public WALCoprocessorHost(final FSHLog log, final Configuration conf) {
+  public WALCoprocessorHost(final AbstractWAL log, final Configuration conf) {
     // We don't want to require an Abortable passed down through (FS)HLog, so
     // this means that a failure to load of a WAL coprocessor won't abort the
     // server. This isn't ideal, and means that security components that

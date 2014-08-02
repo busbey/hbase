@@ -68,8 +68,8 @@ public class Compressor {
     FileSystem inFS = input.getFileSystem(conf);
     FileSystem outFS = output.getFileSystem(conf);
 
-    HLog.Reader in = HLogFactory.createReader(inFS, input, conf, null, false);
-    HLog.Writer out = null;
+    WAL.Reader in = HLogFactory.createReader(inFS, input, conf, null, false);
+    WAL.Writer out = null;
 
     try {
       if (!(in instanceof ReaderBase)) {
@@ -80,7 +80,7 @@ public class Compressor {
       conf.setBoolean(HConstants.ENABLE_WAL_COMPRESSION, !compress);
       out = HLogFactory.createWALWriter(outFS, output, conf);
 
-      HLog.Entry e = null;
+      WAL.Entry e = null;
       while ((e = in.next()) != null) out.append(e);
     } finally {
       in.close();

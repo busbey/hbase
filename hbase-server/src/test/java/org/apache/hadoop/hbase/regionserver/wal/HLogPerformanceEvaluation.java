@@ -46,8 +46,10 @@ import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.io.crypto.KeyProviderForTesting;
 import org.apache.hadoop.hbase.regionserver.HRegion;
-import org.apache.hadoop.hbase.regionserver.wal.HLog.Entry;
 import org.apache.hadoop.hbase.trace.SpanReceiverHost;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
+import org.apache.hadoop.hbase.regionserver.wal.WAL.Entry;
+import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.util.Tool;
@@ -63,7 +65,7 @@ import com.yammer.metrics.core.MetricsRegistry;
 import com.yammer.metrics.reporting.ConsoleReporter;
 
 /**
- * This class runs performance benchmarks for {@link HLog}.
+ * This class runs performance benchmarks for {@link WALService}.
  * See usage for this tool by running:
  * <code>$ hbase org.apache.hadoop.hbase.regionserver.wal.HLogPerformanceEvaluation -h</code>
  */
@@ -148,7 +150,7 @@ public final class HLogPerformanceEvaluation extends Configured implements Tool 
       byte[] key = new byte[keySize];
       byte[] value = new byte[valueSize];
       Random rand = new Random(Thread.currentThread().getId());
-      HLog hlog = region.getLog();
+      WALService hlog = region.getLog();
       ArrayList<UUID> clusters = new ArrayList<UUID>();
       long nonce = HConstants.NO_NONCE;
 
@@ -269,9 +271,9 @@ public final class HLogPerformanceEvaluation extends Configured implements Tool 
       conf.set(HConstants.CRYPTO_KEYPROVIDER_CONF_KEY, KeyProviderForTesting.class.getName());
       conf.set(HConstants.CRYPTO_MASTERKEY_NAME_CONF_KEY, "hbase");
       conf.setClass("hbase.regionserver.hlog.reader.impl", SecureProtobufLogReader.class,
-        HLog.Reader.class);
+        WAL.Reader.class);
       conf.setClass("hbase.regionserver.hlog.writer.impl", SecureProtobufLogWriter.class,
-        HLog.Writer.class);
+        WAL.Writer.class);
       conf.setBoolean(HConstants.ENABLE_WAL_ENCRYPTION, true);
       conf.set(HConstants.CRYPTO_WAL_ALGORITHM_CONF_KEY, cipher);
     }
@@ -298,7 +300,7 @@ public final class HLogPerformanceEvaluation extends Configured implements Tool 
       // Initialize Table Descriptor
       HTableDescriptor htd = createHTableDescriptor(numFamilies);
       final long whenToRoll = roll;
-      final HLog hlog = new FSHLog(fs, rootRegionDir, "wals", getConf()) {
+      final WALService hlog = new FSHLog(fs, rootRegionDir, "wals", getConf()) {
 
         @Override
         public void postSync(final long timeInNanos, final int handlerSyncs) {
@@ -309,7 +311,7 @@ public final class HLogPerformanceEvaluation extends Configured implements Tool 
         }
 
         @Override
-        public long postAppend(final HLog.Entry entry, final long elapsedTime) {
+        public long postAppend(final WAL.Entry entry, final long elapsedTime) {
           long size = super.postAppend(entry, elapsedTime);
           appendMeter.mark(size);
           return size;
@@ -423,7 +425,7 @@ public final class HLogPerformanceEvaluation extends Configured implements Tool 
    * @throws IOException
    */
   private long verify(final Path wal, final boolean verbose) throws IOException {
-    HLog.Reader reader = HLogFactory.createReader(wal.getFileSystem(getConf()), wal, getConf());
+    WAL.Reader reader = HLogFactory.createReader(wal.getFileSystem(getConf()), wal, getConf());
     long count = 0;
     Map<String, Long> sequenceIds = new HashMap<String, Long>();
     try {
@@ -495,8 +497,7 @@ public final class HLogPerformanceEvaluation extends Configured implements Tool 
   }
 
   private HRegion openRegion(final FileSystem fs, final Path dir, final HTableDescriptor htd,
-      final HLog hlog)
-  throws IOException {
+      final WALService hlog) throws IOException {
     // Initialize HRegion
     HRegionInfo regionInfo = new HRegionInfo(htd.getTableName());
     return HRegion.createHRegion(regionInfo, dir, getConf(), htd, hlog);
@@ -505,7 +506,7 @@ public final class HLogPerformanceEvaluation extends Configured implements Tool 
   private void closeRegion(final HRegion region) throws IOException {
     if (region != null) {
       region.close();
-      HLog wal = region.getLog();
+      WALService wal = region.getLog();
       if (wal != null) wal.close();
     }
   }

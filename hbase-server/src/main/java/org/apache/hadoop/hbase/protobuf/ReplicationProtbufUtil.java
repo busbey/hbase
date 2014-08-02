@@ -39,7 +39,7 @@ import org.apache.hadoop.hbase.protobuf.generated.AdminProtos;
 import org.apache.hadoop.hbase.protobuf.generated.AdminProtos.AdminService;
 import org.apache.hadoop.hbase.protobuf.generated.HBaseProtos;
 import org.apache.hadoop.hbase.protobuf.generated.WALProtos;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
 import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 import org.apache.hadoop.hbase.util.ByteStringer;
@@ -57,7 +57,7 @@ public class ReplicationProtbufUtil {
    * @throws java.io.IOException
    */
   public static void replicateWALEntry(final AdminService.BlockingInterface admin,
-      final HLog.Entry[] entries) throws IOException {
+      final WAL.Entry[] entries) throws IOException {
     Pair<AdminProtos.ReplicateWALEntryRequest, CellScanner> p =
       buildReplicateWALEntryRequest(entries, null);
     PayloadCarryingRpcController controller = new PayloadCarryingRpcController(p.getSecond());
@@ -76,7 +76,7 @@ public class ReplicationProtbufUtil {
    * found.
    */
   public static Pair<AdminProtos.ReplicateWALEntryRequest, CellScanner>
-      buildReplicateWALEntryRequest(final HLog.Entry[] entries) {
+      buildReplicateWALEntryRequest(final WAL.Entry[] entries) {
     return buildReplicateWALEntryRequest(entries, null);
   }
 
@@ -89,7 +89,7 @@ public class ReplicationProtbufUtil {
    * found.
    */
   public static Pair<AdminProtos.ReplicateWALEntryRequest, CellScanner>
-      buildReplicateWALEntryRequest(final HLog.Entry[] entries, byte[] encodedRegionName) {
+      buildReplicateWALEntryRequest(final WAL.Entry[] entries, byte[] encodedRegionName) {
     // Accumulate all the Cells seen in here.
     List<List<? extends Cell>> allCells = new ArrayList<List<? extends Cell>>(entries.length);
     int size = 0;
@@ -98,7 +98,7 @@ public class ReplicationProtbufUtil {
     AdminProtos.ReplicateWALEntryRequest.Builder builder =
       AdminProtos.ReplicateWALEntryRequest.newBuilder();
     HBaseProtos.UUID.Builder uuidBuilder = HBaseProtos.UUID.newBuilder();
-    for (HLog.Entry entry: entries) {
+    for (WAL.Entry entry: entries) {
       entryBuilder.clear();
       // TODO: this duplicates a lot in HLogKey#getBuilder
       WALProtos.WALKey.Builder keyBuilder = entryBuilder.getKeyBuilder();

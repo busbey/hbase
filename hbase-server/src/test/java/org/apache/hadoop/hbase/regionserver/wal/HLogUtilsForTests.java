@@ -18,6 +18,7 @@
  */
 package org.apache.hadoop.hbase.regionserver.wal;
 
+import org.apache.hadoop.fs.Path;
 
 /**
  * An Utility testcase that returns the number of log files that
@@ -27,17 +28,34 @@ package org.apache.hadoop.hbase.regionserver.wal;
  *  This is interesting for test only.
  */
 public class HLogUtilsForTests {
-  
+
   /**
    * 
    * @param log
    * @return
    */
-  public static int getNumRolledLogFiles(HLog log) {
-    return ((FSHLog) log).getNumRolledLogFiles();
+  public static int getNumRolledLogFiles(WALService log) {
+    return ((AbstractWAL) log).getNumRolledLogFiles();
   }
 
-  public static int getNumEntries(HLog log) {
-    return ((FSHLog) log).getNumEntries();
+  public static int getNumEntries(WALService log) {
+    return ((AbstractWAL) log).getNumEntries();
+  }
+
+  /**
+   * A WAL file name is of the format: 
+   * <server-name>{@link WAL#WAL_FILE_NAME_DELIMITER}<file-creation-timestamp>[.meta].
+   * It returns the file create timestamp from the file name.
+   * @return the file number that is part of the WAL file name
+   */
+  public static long extractFileNumFromPath(Path hlogName) {
+    if (hlogName == null) throw new IllegalArgumentException("The HLog path couldn't be null");
+    String[] walPathStrs = null;
+    String hlogPath = hlogName.toString();
+    // if it is a meta wal file, it would have a -meta prefix at the end.
+    boolean metaWAL = (hlogPath.endsWith(WAL.META_HLOG_FILE_EXTN)) ? true : false;
+    walPathStrs = hlogPath.split("\\" + WAL.WAL_FILE_NAME_DELIMITER);
+    if (metaWAL) return Long.parseLong(walPathStrs[walPathStrs.length - 2]);
+    return Long.parseLong(walPathStrs[walPathStrs.length - 1]);
   }
 }

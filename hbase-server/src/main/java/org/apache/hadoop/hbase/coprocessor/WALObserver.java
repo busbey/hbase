@@ -37,7 +37,7 @@ import java.io.IOException;
  * hooks for adding logic for WALEdits in the region context during reconstruction,
  *
  * Defines coprocessor hooks for interacting with operations on the
- * {@link org.apache.hadoop.hbase.regionserver.wal.HLog}.
+ * {@link org.apache.hadoop.hbase.regionserver.wal.WALService}.
  */
 @InterfaceAudience.LimitedPrivate(HBaseInterfaceAudience.COPROC)
 @InterfaceStability.Evolving

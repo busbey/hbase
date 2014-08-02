@@ -88,7 +88,8 @@ import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.protobuf.generated.AdminProtos.GetRegionInfoResponse.CompactionState;
 import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.regionserver.HRegionServer;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
+import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
 import org.apache.hadoop.hbase.regionserver.wal.HLogUtil;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
@@ -1388,7 +1389,7 @@ public class TestDistributedLogSplitting {
     FileStatus[] files = FSUtils.listStatus(fs, editsdir, new PathFilter() {
       @Override
       public boolean accept(Path p) {
-        if (p.getName().endsWith(HLog.SEQUENCE_ID_FILE_SUFFIX)) {
+        if (p.getName().endsWith(WAL.SEQUENCE_ID_FILE_SUFFIX)) {
           return true;
         }
         return false;
@@ -1485,12 +1486,12 @@ public class TestDistributedLogSplitting {
     }
   }
 
-  public void makeHLog(HLog log, List<HRegionInfo> regions, String tname, String fname,
+  public void makeHLog(WALService log, List<HRegionInfo> regions, String tname, String fname,
       int num_edits, int edit_size) throws IOException {
     makeHLog(log, regions, tname, fname, num_edits, edit_size, true);
   }
 
-  public void makeHLog(HLog log, List<HRegionInfo> regions, String tname, String fname,
+  public void makeHLog(WALService log, List<HRegionInfo> regions, String tname, String fname,
       int num_edits, int edit_size, boolean closeLog) throws IOException {
     TableName fullTName = TableName.valueOf(tname);
     // remove root and meta region
@@ -1554,8 +1555,8 @@ public class TestDistributedLogSplitting {
   private int countHLog(Path log, FileSystem fs, Configuration conf)
   throws IOException {
     int count = 0;
-    HLog.Reader in = HLogFactory.createReader(fs, log, conf);
-    HLog.Entry e;
+    WAL.Reader in = HLogFactory.createReader(fs, log, conf);
+    WAL.Entry e;
     while ((e = in.next()) != null) {
       if (!WALEdit.isMetaEditFamily(e.getEdit().getCells().get(0))) {
         count++;

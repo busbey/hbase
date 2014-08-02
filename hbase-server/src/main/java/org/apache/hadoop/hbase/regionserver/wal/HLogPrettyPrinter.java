@@ -42,7 +42,7 @@ import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.Tag;
-import org.apache.hadoop.hbase.regionserver.wal.HLog.Reader;
+import org.apache.hadoop.hbase.regionserver.wal.WAL.Reader;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.codehaus.jackson.map.ObjectMapper;
@@ -245,7 +245,7 @@ public class HLogPrettyPrinter {
     }
     Reader log = HLogFactory.createReader(fs, p, conf);
     try {
-      FSHLog.Entry entry;
+      AbstractWAL.Entry entry;
       while ((entry = log.next()) != null) {
         HLogKey key = entry.getKey();
         WALEdit edit = entry.getEdit();

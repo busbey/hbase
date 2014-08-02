@@ -30,7 +30,7 @@ public class InstrumentedSequenceFileLogWriter extends ProtobufLogWriter {
 
   public static boolean activateFailure = false;
   @Override
-    public void append(HLog.Entry entry) throws IOException {
+    public void append(WAL.Entry entry) throws IOException {
       super.append(entry);
       if (activateFailure && Bytes.equals(entry.getKey().getEncodedRegionName(), "break".getBytes())) {
         System.out.println(getClass().getName() + ": I will throw an exception now...");

@@ -42,7 +42,7 @@ import org.apache.hadoop.io.compress.CompressionCodec;
 import org.apache.hadoop.io.compress.DefaultCodec;
 
 /**
- * Implementation of {@link HLog.Writer} that delegates to
+ * Implementation of {@link WALService.Writer} that delegates to
  * SequenceFile.Writer. Legacy implementation only used for compat tests.
  */
 @InterfaceAudience.LimitedPrivate(HBaseInterfaceAudience.CONFIG)
@@ -163,7 +163,7 @@ public class SequenceFileLogWriter extends WriterBase {
   }
 
   @Override
-  public void append(HLog.Entry entry) throws IOException {
+  public void append(WAL.Entry entry) throws IOException {
     entry.setCompressionContext(compressionContext);
     try {
       this.writer.append(entry.getKey(), entry.getEdit());

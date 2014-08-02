@@ -47,7 +47,7 @@ import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.regionserver.HRegion;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
 import org.apache.hadoop.ipc.RemoteException;
 
@@ -143,7 +143,7 @@ class HMerge {
     protected final FileSystem fs;
     protected final Path rootDir;
     protected final HTableDescriptor htd;
-    protected final HLog hlog;
+    protected final WALService hlog;
     private final long maxFilesize;
 
 

@@ -50,7 +50,7 @@ import org.apache.hadoop.hbase.client.TableState;
 import org.apache.hadoop.hbase.exceptions.DeserializationException;
 import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.regionserver.HRegionFileSystem;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
 import org.apache.hadoop.hbase.regionserver.wal.HLogUtil;
 import org.apache.hadoop.hbase.security.access.AccessControlLists;
@@ -383,7 +383,7 @@ public class NamespaceUpgrade implements Tool {
 
     ServerName fakeServer = ServerName.valueOf("nsupgrade", 96, 123);
     String metaLogName = HLogUtil.getHLogDirectoryName(fakeServer.toString());
-    HLog metaHLog = HLogFactory.createMetaHLog(fs, rootDir,
+    WALService metaHLog = HLogFactory.createMetaHLog(fs, rootDir,
         metaLogName, conf, null,
         fakeServer.toString());
     FSTableDescriptors fst = new FSTableDescriptors(conf);

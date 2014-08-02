@@ -45,7 +45,7 @@ import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
 import org.apache.hadoop.hbase.mapreduce.WALPlayer.HLogKeyValueMapper;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
@@ -107,7 +107,7 @@ public class TestWALPlayer {
     t1.delete(d);
 
     // replay the WAL, map table 1 to table 2
-    HLog log = cluster.getRegionServer(0).getWAL();
+    WALService log = cluster.getRegionServer(0).getWAL();
     log.rollWriter();
     String walInputDir = new Path(cluster.getMaster().getMasterFileSystem()
         .getRootDir(), HConstants.HREGION_LOGDIR_NAME).toString();

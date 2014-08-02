@@ -33,8 +33,8 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.regionserver.wal.HLog.Reader;
-import org.apache.hadoop.hbase.regionserver.wal.HLog.Writer;
+import org.apache.hadoop.hbase.regionserver.wal.WAL.Reader;
+import org.apache.hadoop.hbase.regionserver.wal.WAL.Writer;
 import org.apache.hadoop.hbase.util.CancelableProgressable;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 
@@ -42,24 +42,24 @@ import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 public class HLogFactory {
     private static final Log LOG = LogFactory.getLog(HLogFactory.class);
 
-    public static HLog createHLog(final FileSystem fs, final Path root, final String logName,
+    public static WALService createHLog(final FileSystem fs, final Path root, final String logName,
         final Configuration conf) throws IOException {
       return new FSHLog(fs, root, logName, conf);
     }
-    
-    public static HLog createHLog(final FileSystem fs, final Path root, final String logName,
+
+    public static WALService createHLog(final FileSystem fs, final Path root, final String logName,
         final String oldLogName, final Configuration conf) throws IOException {
       return new FSHLog(fs, root, logName, oldLogName, conf, null, true, null, false);
 }
-    
-    public static HLog createHLog(final FileSystem fs, final Path root, final String logName,
+
+    public static WALService createHLog(final FileSystem fs, final Path root, final String logName,
         final Configuration conf, final List<WALActionsListener> listeners,
         final String prefix) throws IOException {
       return new FSHLog(fs, root, logName, HConstants.HREGION_OLDLOGDIR_NAME, conf, listeners,
         true, prefix, false);
     }
 
-    public static HLog createMetaHLog(final FileSystem fs, final Path root, final String logName,
+    public static WALService createMetaHLog(final FileSystem fs, final Path root, final String logName,
         final Configuration conf, final List<WALActionsListener> listeners,
         final String prefix) throws IOException {
       return new FSHLog(fs, root, logName, HConstants.HREGION_OLDLOGDIR_NAME, conf, listeners,
@@ -75,24 +75,24 @@ public class HLogFactory {
       logReaderClass = null;
     }
 
-    public static HLog.Reader createReader(final FileSystem fs,
+    public static WAL.Reader createReader(final FileSystem fs,
         final Path path, Configuration conf) throws IOException {
       return createReader(fs, path, conf, null);
     }
 
     /**
-     * Create a reader for the WAL. If you are reading from a file that's being written to
-     * and need to reopen it multiple times, use {@link HLog.Reader#reset()} instead of this method
+     * Create a reader for the WAL. If you are reading from a file that's being written to and need
+     * to reopen it multiple times, use {@link WAL.Reader#reset()} instead of this method
      * then just seek back to the last known good position.
      * @return A WAL reader.  Close when done with it.
      * @throws IOException
      */
-    public static HLog.Reader createReader(final FileSystem fs, final Path path,
+    public static WAL.Reader createReader(final FileSystem fs, final Path path,
         Configuration conf, CancelableProgressable reporter) throws IOException {
       return createReader(fs, path, conf, reporter, true);
     }
 
-    public static HLog.Reader createReader(final FileSystem fs, final Path path,
+    public static WAL.Reader createReader(final FileSystem fs, final Path path,
       Configuration conf, CancelableProgressable reporter, boolean allowCustom)
         throws IOException {
       if (allowCustom && (logReaderClass == null)) {
@@ -112,7 +112,7 @@ public class HLogFactory {
           try {
             if (lrClass != ProtobufLogReader.class) {
               // User is overriding the WAL reader, let them.
-              HLog.Reader reader = lrClass.newInstance();
+              WAL.Reader reader = lrClass.newInstance();
               reader.init(fs, path, conf, null);
               return reader;
             } else {
@@ -124,7 +124,7 @@ public class HLogFactory {
               byte[] magic = new byte[ProtobufLogReader.PB_WAL_MAGIC.length];
               boolean isPbWal = (stream.read(magic) == magic.length)
                   && Arrays.equals(magic, ProtobufLogReader.PB_WAL_MAGIC);
-              HLog.Reader reader =
+              WAL.Reader reader =
                   isPbWal ? new ProtobufLogReader() : new SequenceFileLogReader();
               reader.init(fs, path, conf, stream);
               return reader;
@@ -179,17 +179,17 @@ public class HLogFactory {
      * @return A WAL writer.  Close when done with it.
      * @throws IOException
      */
-    public static HLog.Writer createWALWriter(final FileSystem fs,
+    public static WAL.Writer createWALWriter(final FileSystem fs,
         final Path path, Configuration conf) throws IOException {
       return createWriter(fs, path, conf, false);
     }
 
-    public static HLog.Writer createRecoveredEditsWriter(final FileSystem fs,
+    public static WAL.Writer createRecoveredEditsWriter(final FileSystem fs,
         final Path path, Configuration conf) throws IOException {
       return createWriter(fs, path, conf, true);
     }
 
-    private static HLog.Writer createWriter(final FileSystem fs,
+    private static WAL.Writer createWriter(final FileSystem fs,
         final Path path, Configuration conf, boolean overwritable)
     throws IOException {
       try {
@@ -197,7 +197,7 @@ public class HLogFactory {
           logWriterClass = conf.getClass("hbase.regionserver.hlog.writer.impl",
               ProtobufLogWriter.class, Writer.class);
         }
-        HLog.Writer writer = (HLog.Writer)logWriterClass.newInstance();
+        WAL.Writer writer = (WAL.Writer)logWriterClass.newInstance();
         writer.init(fs, path, conf, overwritable);
         return writer;
       } catch (Exception e) {

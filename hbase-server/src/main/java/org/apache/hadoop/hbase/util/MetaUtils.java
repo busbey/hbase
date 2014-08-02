@@ -35,7 +35,7 @@ import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.regionserver.HRegion;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
 
 /**
@@ -51,7 +51,7 @@ public class MetaUtils {
   private final Configuration conf;
   private final FSTableDescriptors descriptors;
   private FileSystem fs;
-  private HLog log;
+  private WALService log;
   private HRegion metaRegion;
   private Map<byte [], HRegion> metaRegions = Collections.synchronizedSortedMap(
     new TreeMap<byte [], HRegion>(Bytes.BYTES_COMPARATOR));
@@ -87,7 +87,7 @@ public class MetaUtils {
    * @return the HLog
    * @throws IOException e
    */
-  public synchronized HLog getLog() throws IOException {
+  public synchronized WALService getLog() throws IOException {
     if (this.log == null) {
       String logName = 
           HConstants.HREGION_LOGDIR_NAME + "_" + System.currentTimeMillis();

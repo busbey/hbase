@@ -24,7 +24,7 @@ import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
 import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ public class ReplicationHLogReaderManager {
   private final FileSystem fs;
   private final Configuration conf;
   private long position = 0;
-  private HLog.Reader reader;
+  private WAL.Reader reader;
   private Path lastPath;
 
   /**
@@ -60,7 +60,7 @@ public class ReplicationHLogReaderManager {
    * @return an HLog reader.
    * @throws IOException
    */
-  public HLog.Reader openReader(Path path) throws IOException {
+  public WAL.Reader openReader(Path path) throws IOException {
     // Detect if this is a new file, if so get a new reader else
     // reset the current reader so that we see the new data
     if (this.reader == null || !this.lastPath.equals(path)) {
@@ -82,8 +82,8 @@ public class ReplicationHLogReaderManager {
    * @return a new entry or null
    * @throws IOException
    */
-  public HLog.Entry readNextAndSetPosition() throws IOException {
-    HLog.Entry entry = this.reader.next();
+  public WAL.Entry readNextAndSetPosition() throws IOException {
+    WAL.Entry entry = this.reader.next();
     // Store the position so that in the future the reader can start
     // reading from here. If the above call to next() throws an
     // exception, the position won't be changed and retry will happen

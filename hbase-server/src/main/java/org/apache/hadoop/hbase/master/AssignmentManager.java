@@ -76,7 +76,7 @@ import org.apache.hadoop.hbase.protobuf.generated.RegionServerStatusProtos.Regio
 import org.apache.hadoop.hbase.protobuf.generated.RegionServerStatusProtos.RegionStateTransition.TransitionCode;
 import org.apache.hadoop.hbase.regionserver.RegionOpeningState;
 import org.apache.hadoop.hbase.regionserver.RegionServerStoppedException;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
 import org.apache.hadoop.hbase.regionserver.wal.HLogUtil;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.FSUtils;
@@ -463,9 +463,9 @@ public class AssignmentManager {
     }
     if (!failover) {
       // If we get here, we have a full cluster restart. It is a failover only
-      // if there are some HLogs are not split yet. For meta HLogs, they should have
+      // if there are some WALs are not split yet. For meta WALs, they should have
       // been split already, if any. We can walk through those queued dead servers,
-      // if they don't have any HLogs, this restart should be considered as a clean one
+      // if they don't have any WALs, this restart should be considered as a clean one
       Set<ServerName> queuedDeadServers = serverManager.getRequeuedDeadServers().keySet();
       if (!queuedDeadServers.isEmpty()) {
         Configuration conf = server.getConfiguration();
@@ -473,7 +473,7 @@ public class AssignmentManager {
         FileSystem fs = rootdir.getFileSystem(conf);
         for (ServerName serverName: queuedDeadServers) {
           Path logDir = new Path(rootdir, HLogUtil.getHLogDirectoryName(serverName.toString()));
-          Path splitDir = logDir.suffix(HLog.SPLITTING_EXT);
+          Path splitDir = logDir.suffix(WAL.SPLITTING_EXT);
           if (fs.exists(logDir) || fs.exists(splitDir)) {
             LOG.debug("Found queued dead server " + serverName);
             failover = true;

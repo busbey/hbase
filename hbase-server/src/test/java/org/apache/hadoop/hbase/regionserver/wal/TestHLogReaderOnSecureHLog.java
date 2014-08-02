@@ -102,7 +102,7 @@ public class TestHLogReaderOnSecureHLog {
       kvs.add(new KeyValue(row, family, Bytes.toBytes(i), value));
       wal.append(regioninfo, tableName, kvs, System.currentTimeMillis(), htd, sequenceId);
     }
-    final Path walPath = ((FSHLog) wal).computeFilename();
+    final Path walPath = wal.getCurrentFileName();
     wal.close();
     // restore the cell codec class
     conf.set(WALCellCodec.WAL_CELL_CODEC_CLASS_KEY, clsName);
@@ -116,9 +116,9 @@ public class TestHLogReaderOnSecureHLog {
     HLogFactory.resetLogReaderClass();
     HLogFactory.resetLogWriterClass();
     conf.setClass("hbase.regionserver.hlog.reader.impl", ProtobufLogReader.class,
-      HLog.Reader.class);
+      WAL.Reader.class);
     conf.setClass("hbase.regionserver.hlog.writer.impl", SecureProtobufLogWriter.class,
-      HLog.Writer.class);
+      WAL.Writer.class);
     FileSystem fs = TEST_UTIL.getTestFileSystem();
     Path walPath = writeWAL("testHLogReaderOnSecureHLog", true);
 
@@ -132,7 +132,7 @@ public class TestHLogReaderOnSecureHLog {
 
     // Confirm the WAL cannot be read back by ProtobufLogReader
     try {
-      HLog.Reader reader = HLogFactory.createReader(TEST_UTIL.getTestFileSystem(), walPath, conf);
+      WAL.Reader reader = HLogFactory.createReader(TEST_UTIL.getTestFileSystem(), walPath, conf);
       assertFalse(true);
     } catch (IOException ioe) {
       // expected IOE
@@ -160,9 +160,9 @@ public class TestHLogReaderOnSecureHLog {
     HLogFactory.resetLogReaderClass();
     HLogFactory.resetLogWriterClass();
     conf.setClass("hbase.regionserver.hlog.reader.impl", SecureProtobufLogReader.class,
-      HLog.Reader.class);
+      WAL.Reader.class);
     conf.setClass("hbase.regionserver.hlog.writer.impl", ProtobufLogWriter.class,
-      HLog.Writer.class);
+      WAL.Writer.class);
     FileSystem fs = TEST_UTIL.getTestFileSystem();
     Path walPath = writeWAL("testSecureHLogReaderOnHLog", false);
 
@@ -176,7 +176,7 @@ public class TestHLogReaderOnSecureHLog {
 
     // Confirm the WAL can be read back by SecureProtobufLogReader
     try {
-      HLog.Reader reader = HLogFactory.createReader(TEST_UTIL.getTestFileSystem(), walPath, conf);
+      WAL.Reader reader = HLogFactory.createReader(TEST_UTIL.getTestFileSystem(), walPath, conf);
     } catch (IOException ioe) {
       assertFalse(true);
     }

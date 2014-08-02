@@ -127,7 +127,8 @@ import org.apache.hadoop.hbase.protobuf.generated.WALProtos.FlushDescriptor.Flus
 import org.apache.hadoop.hbase.protobuf.generated.WALProtos.RegionEventDescriptor;
 import org.apache.hadoop.hbase.regionserver.MultiVersionConsistencyControl.WriteEntry;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionContext;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
+import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
 import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
 import org.apache.hadoop.hbase.regionserver.wal.HLogSplitter;
@@ -289,7 +290,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
   final AtomicLong compactionNumBytesCompacted = new AtomicLong(0L);
 
 
-  private final HLog log;
+  private final WALService log;
   private final HRegionFileSystem fs;
   protected final Configuration conf;
   private final Configuration baseConf;
@@ -550,7 +551,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
    * @param rsServices reference to {@link RegionServerServices} or null
    */
   @Deprecated
-  public HRegion(final Path tableDir, final HLog log, final FileSystem fs,
+  public HRegion(final Path tableDir, final WALService log, final FileSystem fs,
       final Configuration confParam, final HRegionInfo regionInfo,
       final HTableDescriptor htd, final RegionServerServices rsServices) {
     this(new HRegionFileSystem(confParam, fs, tableDir, regionInfo),
@@ -574,7 +575,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
    * @param htd the table descriptor
    * @param rsServices reference to {@link RegionServerServices} or null
    */
-  public HRegion(final HRegionFileSystem fs, final HLog log, final Configuration confParam,
+  public HRegion(final HRegionFileSystem fs, final WALService log, final Configuration confParam,
       final HTableDescriptor htd, final RegionServerServices rsServices) {
     if (htd == null) {
       throw new IllegalArgumentException("Need table descriptor");
@@ -861,7 +862,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
     return maxSeqId;
   }
 
-  private void writeRegionOpenMarker(HLog log, long openSeqId) throws IOException {
+  private void writeRegionOpenMarker(WALService log, long openSeqId) throws IOException {
     Map<byte[], List<Path>> storeFiles
     = new TreeMap<byte[], List<Path>>(Bytes.BYTES_COMPARATOR);
     for (Map.Entry<byte[], Store> entry : getStores().entrySet()) {
@@ -880,7 +881,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
       getSequenceId());
   }
 
-  private void writeRegionCloseMarker(HLog log) throws IOException {
+  private void writeRegionCloseMarker(WALService log) throws IOException {
     Map<byte[], List<Path>> storeFiles
     = new TreeMap<byte[], List<Path>>(Bytes.BYTES_COMPARATOR);
     for (Map.Entry<byte[], Store> entry : getStores().entrySet()) {
@@ -1405,7 +1406,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
   }
 
   /** @return HLog in use for this region */
-  public HLog getLog() {
+  public WALService getLog() {
     return this.log;
   }
 
@@ -1737,8 +1738,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
    * @see #internalFlushcache(MonitoredTask)
    */
   protected FlushResult internalFlushcache(
-      final HLog wal, final long myseqid, MonitoredTask status)
-  throws IOException {
+      final WALService wal, final long myseqid, MonitoredTask status) throws IOException {
     if (this.rsServices != null && this.rsServices.isAborted()) {
       // Don't flush when server aborting, it's unsafe
       throw new IOException("Aborting flush because server is aborted...");
@@ -2001,7 +2001,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
    * @return Next sequence number unassociated with any actual edit.
    * @throws IOException
    */
-  private long getNextSequenceId(final HLog wal) throws IOException {
+  private long getNextSequenceId(final WALService wal) throws IOException {
     HLogKey key = this.appendNoSyncNoAppend(wal, null);
     return key.getSequenceId();
   }
@@ -2737,7 +2737,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
       Mutation mutation = batchOp.getMutation(firstIndex);
       if (walEdit.size() > 0) {
         walKey = new HLogKey(this.getRegionInfo().getEncodedNameAsBytes(),
-            this.htableDescriptor.getTableName(), HLog.NO_SEQUENCE_ID, now,
+            this.htableDescriptor.getTableName(), WAL.NO_SEQUENCE_ID, now,
             mutation.getClusterIds(), currentNonceGroup, currentNonce);
         if(isInReplay) {
           walKey.setOrigLogSeqNum(batchOp.getReplaySequenceId());
@@ -3454,7 +3454,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
     FileSystem fs = this.fs.getFileSystem();
 
     status.setStatus("Opening logs");
-    HLog.Reader reader = null;
+    WAL.Reader reader = null;
     try {
       reader = HLogFactory.createReader(fs, edits, conf);
       long currentEditSeqId = -1;
@@ -3463,7 +3463,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
       long skippedEdits = 0;
       long editsCount = 0;
       long intervalEdits = 0;
-      HLog.Entry entry;
+      WAL.Entry entry;
       Store store = null;
       boolean reported_once = false;
       ServerNonceManager ng = this.rsServices == null ? null : this.rsServices.getNonceManager();
@@ -4414,7 +4414,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
    * @param htd the table descriptor
    * @return the new instance
    */
-  static HRegion newHRegion(Path tableDir, HLog log, FileSystem fs,
+  static HRegion newHRegion(Path tableDir, WALService log, FileSystem fs,
       Configuration conf, HRegionInfo regionInfo, final HTableDescriptor htd,
       RegionServerServices rsServices) {
     try {
@@ -4423,7 +4423,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
           (Class<? extends HRegion>) conf.getClass(HConstants.REGION_IMPL, HRegion.class);
 
       Constructor<? extends HRegion> c =
-          regionClass.getConstructor(Path.class, HLog.class, FileSystem.class,
+          regionClass.getConstructor(Path.class, WALService.class, FileSystem.class,
               Configuration.class, HRegionInfo.class, HTableDescriptor.class,
               RegionServerServices.class);
 
@@ -4437,10 +4437,10 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
   /**
    * Convenience method creating new HRegions. Used by createTable and by the
    * bootstrap code in the HMaster constructor.
-   * Note, this method creates an {@link HLog} for the created region. It
+   * Note, this method creates an {@link WALService} for the created region. It
    * needs to be closed explicitly.  Use {@link HRegion#getLog()} to get
    * access.  <b>When done with a region created using this method, you will
-   * need to explicitly close the {@link HLog} it created too; it will not be
+   * need to explicitly close the {@link WALService} it created too; it will not be
    * done for you.  Not closing the log will leave at least a daemon thread
    * running.</b>  Call {@link #closeHRegion(HRegion)} and it will do
    * necessary cleanup for you.
@@ -4460,9 +4460,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
    * This will do the necessary cleanup a call to
    * {@link #createHRegion(HRegionInfo, Path, Configuration, HTableDescriptor)}
    * requires.  This method will close the region and then close its
-   * associated {@link HLog} file.  You use it if you call the other createHRegion,
-   * the one that takes an {@link HLog} instance but don't be surprised by the
-   * call to the {@link HLog#closeAndDelete()} on the {@link HLog} the
+   * associated {@link WALService} file.  You use it if you call the other createHRegion,
+   * the one that takes an {@link WALService} instance but don't be surprised by the
+   * call to the {@link WALService#closeAndDelete()} on the {@link WALService} the
    * HRegion was carrying.
    * @throws IOException
    */
@@ -4475,7 +4475,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
 
   /**
    * Convenience method creating new HRegions. Used by createTable.
-   * The {@link HLog} for the created region needs to be closed explicitly.
+   * The {@link WALService} for the created region needs to be closed explicitly.
    * Use {@link HRegion#getLog()} to get access.
    *
    * @param info Info for region to create.
@@ -4489,7 +4489,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
   public static HRegion createHRegion(final HRegionInfo info, final Path rootDir,
                                       final Configuration conf,
                                       final HTableDescriptor hTableDescriptor,
-                                      final HLog hlog,
+                                      final WALService hlog,
                                       final boolean initialize)
       throws IOException {
     return createHRegion(info, rootDir, conf, hTableDescriptor,
@@ -4498,7 +4498,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
 
   /**
    * Convenience method creating new HRegions. Used by createTable.
-   * The {@link HLog} for the created region needs to be closed
+   * The {@link WALService} for the created region needs to be closed
    * explicitly, if it is not null.
    * Use {@link HRegion#getLog()} to get access.
    *
@@ -4513,7 +4513,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
   public static HRegion createHRegion(final HRegionInfo info, final Path rootDir,
                                       final Configuration conf,
                                       final HTableDescriptor hTableDescriptor,
-                                      final HLog hlog,
+                                      final WALService hlog,
                                       final boolean initialize, final boolean ignoreHLog)
       throws IOException {
       Path tableDir = FSUtils.getTableDir(rootDir, info.getTable());
@@ -4522,7 +4522,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
 
   /**
    * Convenience method creating new HRegions. Used by createTable.
-   * The {@link HLog} for the created region needs to be closed
+   * The {@link WALService} for the created region needs to be closed
    * explicitly, if it is not null.
    * Use {@link HRegion#getLog()} to get access.
    *
@@ -4538,7 +4538,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
   public static HRegion createHRegion(final HRegionInfo info, final Path rootDir, final Path tableDir,
                                       final Configuration conf,
                                       final HTableDescriptor hTableDescriptor,
-                                      final HLog hlog,
+                                      final WALService hlog,
                                       final boolean initialize, final boolean ignoreHLog)
       throws IOException {
     LOG.info("creating HRegion " + info.getTable().getNameAsString()
@@ -4546,7 +4546,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
         " Table name == " + info.getTable().getNameAsString());
     FileSystem fs = FileSystem.get(conf);
     HRegionFileSystem rfs = HRegionFileSystem.createRegionOnFileSystem(conf, fs, tableDir, info);
-    HLog effectiveHLog = hlog;
+    WALService effectiveHLog = hlog;
     if (hlog == null && !ignoreHLog) {
       effectiveHLog = HLogFactory.createHLog(fs, rfs.getRegionDir(),
                                              HConstants.HREGION_LOGDIR_NAME, conf);
@@ -4564,7 +4564,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
   public static HRegion createHRegion(final HRegionInfo info, final Path rootDir,
                                       final Configuration conf,
                                       final HTableDescriptor hTableDescriptor,
-                                      final HLog hlog)
+                                      final WALService hlog)
     throws IOException {
     return createHRegion(info, rootDir, conf, hTableDescriptor, hlog, true);
   }
@@ -4582,7 +4582,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
    * @throws IOException
    */
   public static HRegion openHRegion(final HRegionInfo info,
-      final HTableDescriptor htd, final HLog wal,
+      final HTableDescriptor htd, final WALService wal,
       final Configuration conf)
   throws IOException {
     return openHRegion(info, htd, wal, conf, null, null);
@@ -4604,7 +4604,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
    * @throws IOException
    */
   public static HRegion openHRegion(final HRegionInfo info,
-    final HTableDescriptor htd, final HLog wal, final Configuration conf,
+    final HTableDescriptor htd, final WALService wal, final Configuration conf,
     final RegionServerServices rsServices,
     final CancelableProgressable reporter)
   throws IOException {
@@ -4625,7 +4625,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
    * @throws IOException
    */
   public static HRegion openHRegion(Path rootDir, final HRegionInfo info,
-      final HTableDescriptor htd, final HLog wal, final Configuration conf)
+      final HTableDescriptor htd, final WALService wal, final Configuration conf)
   throws IOException {
     return openHRegion(rootDir, info, htd, wal, conf, null, null);
   }
@@ -4646,7 +4646,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
    * @throws IOException
    */
   public static HRegion openHRegion(final Path rootDir, final HRegionInfo info,
-      final HTableDescriptor htd, final HLog wal, final Configuration conf,
+      final HTableDescriptor htd, final WALService wal, final Configuration conf,
       final RegionServerServices rsServices,
       final CancelableProgressable reporter)
   throws IOException {
@@ -4675,7 +4675,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
    * @throws IOException
    */
   public static HRegion openHRegion(final Configuration conf, final FileSystem fs,
-      final Path rootDir, final HRegionInfo info, final HTableDescriptor htd, final HLog wal)
+      final Path rootDir, final HRegionInfo info, final HTableDescriptor htd, final WALService wal)
       throws IOException {
     return openHRegion(conf, fs, rootDir, info, htd, wal, null, null);
   }
@@ -4697,7 +4697,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
    * @throws IOException
    */
   public static HRegion openHRegion(final Configuration conf, final FileSystem fs,
-      final Path rootDir, final HRegionInfo info, final HTableDescriptor htd, final HLog wal,
+      final Path rootDir, final HRegionInfo info, final HTableDescriptor htd, final WALService wal,
       final RegionServerServices rsServices, final CancelableProgressable reporter)
       throws IOException {
     Path tableDir = FSUtils.getTableDir(rootDir, info.getTable());
@@ -4721,8 +4721,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
    * @throws IOException
    */
   public static HRegion openHRegion(final Configuration conf, final FileSystem fs,
-      final Path rootDir, final Path tableDir, final HRegionInfo info, final HTableDescriptor htd, final HLog wal,
-      final RegionServerServices rsServices, final CancelableProgressable reporter)
+      final Path rootDir, final Path tableDir, final HRegionInfo info, final HTableDescriptor htd,
+      final WALService wal, final RegionServerServices rsServices,
+      final CancelableProgressable reporter)
       throws IOException {
     if (info == null) throw new NullPointerException("Passed region info is null");
     if (LOG.isDebugEnabled()) {
@@ -5190,7 +5191,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
           // 8. Append no sync
           if (!walEdit.isEmpty()) {
             walKey = new HLogKey(this.getRegionInfo().getEncodedNameAsBytes(),
-              this.htableDescriptor.getTableName(), HLog.NO_SEQUENCE_ID, now,
+              this.htableDescriptor.getTableName(), WAL.NO_SEQUENCE_ID, now,
               processor.getClusterIds(), nonceGroup, nonce);
             txid = this.log.appendNoSync(this.htableDescriptor, this.getRegionInfo(),
               walKey, walEdit, getSequenceId(), true, memstoreCells);
@@ -5470,7 +5471,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
             // cluster. A slave cluster receives the final value (not the delta)
             // as a Put.
             walKey = new HLogKey(getRegionInfo().getEncodedNameAsBytes(),
-              this.htableDescriptor.getTableName(), HLog.NO_SEQUENCE_ID, nonceGroup, nonce);
+              this.htableDescriptor.getTableName(), WAL.NO_SEQUENCE_ID, nonceGroup, nonce);
             txid = this.log.appendNoSync(this.htableDescriptor, getRegionInfo(), walKey, walEdits,
               this.sequenceId, true, memstoreCells);
           } else {
@@ -5693,7 +5694,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
               // cluster. A slave cluster receives the final value (not the delta)
               // as a Put.
               walKey = new HLogKey(this.getRegionInfo().getEncodedNameAsBytes(),
-                this.htableDescriptor.getTableName(), HLog.NO_SEQUENCE_ID, nonceGroup, nonce);
+                this.htableDescriptor.getTableName(), WAL.NO_SEQUENCE_ID, nonceGroup, nonce);
               txid = this.log.appendNoSync(this.htableDescriptor, this.getRegionInfo(),
                 walKey, walEdits, getSequenceId(), true, memstoreCells);
             } else {
@@ -5908,7 +5909,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
    * @throws IOException
    */
   private static void processTable(final FileSystem fs, final Path p,
-      final HLog log, final Configuration c,
+      final WALService log, final Configuration c,
       final boolean majorCompact)
   throws IOException {
     HRegion region;
@@ -6299,7 +6300,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
     final Path logdir = new Path(c.get("hbase.tmp.dir"));
     final String logname = "hlog" + FSUtils.getTableName(tableDir) + System.currentTimeMillis();
 
-    final HLog log = HLogFactory.createHLog(fs, logdir, logname, c);
+    final WALService log = HLogFactory.createHLog(fs, logdir, logname, c);
     try {
       processTable(fs, tableDir, log, c, majorCompact);
     } finally {
@@ -6479,9 +6480,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver { // 
    * @return Return the key used appending with no sync and no append.
    * @throws IOException
    */
-  private HLogKey appendNoSyncNoAppend(final HLog wal, List<Cell> cells) throws IOException {
+  private HLogKey appendNoSyncNoAppend(final WALService wal, List<Cell> cells) throws IOException {
     HLogKey key = new HLogKey(getRegionInfo().getEncodedNameAsBytes(), getRegionInfo().getTable(),
-      HLog.NO_SEQUENCE_ID, 0, null, HConstants.NO_NONCE, HConstants.NO_NONCE);
+      WAL.NO_SEQUENCE_ID, 0, null, HConstants.NO_NONCE, HConstants.NO_NONCE);
     // Call append but with an empty WALEdit.  The returned seqeunce id will not be associated
     // with any edit and we can be sure it went in after all outstanding appends.
     wal.appendNoSync(getTableDesc(), getRegionInfo(), key,

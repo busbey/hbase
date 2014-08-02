@@ -40,7 +40,7 @@ import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.regionserver.InternalScanner;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.testclassification.MiscTests;
@@ -198,7 +198,7 @@ public class TestMergeTool extends HBaseTestCase {
    * @throws Exception
    */
   private HRegion mergeAndVerify(final String msg, final String regionName1,
-    final String regionName2, final HLog log, final int upperbound)
+    final String regionName2, final WALService log, final int upperbound)
   throws Exception {
     Merge merger = new Merge(this.conf);
     LOG.info(msg);
@@ -278,7 +278,7 @@ public class TestMergeTool extends HBaseTestCase {
       + System.currentTimeMillis();
     LOG.info("Creating log " + logPath.toString() + "/" + logName);
 
-    HLog log = HLogFactory.createHLog(this.fs, logPath,
+    WALService log = HLogFactory.createHLog(this.fs, logPath,
         logName, this.conf);
 
     try {

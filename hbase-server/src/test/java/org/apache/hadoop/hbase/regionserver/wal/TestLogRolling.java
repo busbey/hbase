@@ -37,6 +37,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
@@ -81,7 +82,12 @@ import org.junit.experimental.categories.Category;
 public class TestLogRolling  {
   private static final Log LOG = LogFactory.getLog(TestLogRolling.class);
   private HRegionServer server;
-  private HLog log;
+  /**
+   * This class invokes APIs that are present both in WALService and WAL. Having a AbstractWAL
+   * reference helps in avoiding type casting each time when a WAL obtained from a RegionServer
+   * invokes any WAL API.
+   */
+  private AbstractWAL log;
   private String tableName;
   private byte[] value;
   private FileSystem fs;
@@ -175,12 +181,12 @@ public class TestLogRolling  {
     // When the hbase:meta table can be opened, the region servers are running
     new HTable(TEST_UTIL.getConfiguration(), TableName.META_TABLE_NAME);
     this.server = cluster.getRegionServerThreads().get(0).getRegionServer();
-    this.log = server.getWAL();
+    this.log = (AbstractWAL) server.getWAL();
 
     Table table = createTestTable(this.tableName);
 
     server = TEST_UTIL.getRSForFirstRegionInTable(table.getName());
-    this.log = server.getWAL();
+    this.log = (AbstractWAL) server.getWAL();
     for (int i = 1; i <= 256; i++) {    // 256 writes should cause 8 log rolls
       doPut(table, i);
       if (i % 32 == 0) {
@@ -201,7 +207,7 @@ public class TestLogRolling  {
   public void testLogRollOnNothingWritten() throws Exception {
     Configuration conf = TEST_UTIL.getConfiguration();
     HFileSystem fs = new HFileSystem(conf, false);
-    HLog newLog = HLogFactory.createHLog(fs.getBackingFs(),
+    WALService newLog = HLogFactory.createHLog(fs.getBackingFs(),
       FSUtils.getRootDir(conf), "test", conf, null, "test.com:8080:1");
     try {
       // Now roll the log before we write anything.
@@ -221,7 +227,7 @@ public class TestLogRolling  {
     this.tableName = getName();
       // TODO: Why does this write data take for ever?
       startAndWriteData();
-      LOG.info("after writing there are " + ((FSHLog) log).getNumRolledLogFiles() + " log files");
+      LOG.info("after writing there are " + log.getNumRolledLogFiles() + " log files");
 
       // flush all regions
 
@@ -234,9 +240,9 @@ public class TestLogRolling  {
       // Now roll the log
       log.rollWriter();
 
-      int count = ((FSHLog) log).getNumRolledLogFiles();
+      int count = log.getNumRolledLogFiles();
       LOG.info("after flushing all regions and rolling logs there are " +
-                                      ((FSHLog) log).getNumRolledLogFiles() + " log files");
+                                      log.getNumRolledLogFiles() + " log files");
       assertTrue(("actual count: " + count), count <= 2);
   }
 
@@ -297,9 +303,9 @@ public class TestLogRolling  {
   /**
    * Give me the HDFS pipeline for this log file
    */
-  DatanodeInfo[] getPipeline(HLog log) throws IllegalArgumentException,
+  DatanodeInfo[] getPipeline(WALService log) throws IllegalArgumentException,
       IllegalAccessException, InvocationTargetException {
-    OutputStream stm = ((FSHLog) log).getOutputStream();
+    OutputStream stm = ((AbstractWAL) log).getOutputStream();
     Method getPipeline = null;
     for (Method m : stm.getClass().getDeclaredMethods()) {
       if (m.getName().endsWith("getPipeline")) {
@@ -329,7 +335,7 @@ public class TestLogRolling  {
       fs.getDefaultReplication(TEST_UTIL.getDataTestDirOnTestFS()));
 
     this.server = cluster.getRegionServer(0);
-    this.log = server.getWAL();
+    this.log = (AbstractWAL) server.getWAL();
 
     // Create the test table and open it
     HTableDescriptor desc = new HTableDescriptor(TableName.valueOf(getName()));
@@ -340,9 +346,8 @@ public class TestLogRolling  {
     assertTrue(table.isAutoFlush());
 
     server = TEST_UTIL.getRSForFirstRegionInTable(desc.getTableName());
-    this.log = server.getWAL();
+    this.log = (AbstractWAL) server.getWAL();
 
-    assertTrue("Need HDFS-826 for this test", ((FSHLog) log).canGetCurReplicas());
     // don't run this test without append support (HDFS-200 & HDFS-142)
     assertTrue("Need append support for this test", FSUtils
         .isAppendSupported(TEST_UTIL.getConfiguration()));
@@ -371,12 +376,13 @@ public class TestLogRolling  {
     writeData(table, 2);
 
     long curTime = System.currentTimeMillis();
-    long oldFilenum = ((FSHLog) log).getFilenum();
+    LOG.info("log.getCurrentFileName(): " + log.getCurrentFileName());
+    long oldFilenum = HLogUtilsForTests.extractFileNumFromPath(log.getCurrentFileName());
     assertTrue("Log should have a timestamp older than now",
         curTime > oldFilenum && oldFilenum != -1);
 
     assertTrue("The log shouldn't have rolled yet",
-      oldFilenum == ((FSHLog) log).getFilenum());
+      oldFilenum == HLogUtilsForTests.extractFileNumFromPath(log.getCurrentFileName()));
     final DatanodeInfo[] pipeline = getPipeline(log);
     assertTrue(pipeline.length ==
         fs.getDefaultReplication(TEST_UTIL.getDataTestDirOnTestFS()));
@@ -387,7 +393,7 @@ public class TestLogRolling  {
 
     // this write should succeed, but trigger a log roll
     writeData(table, 2);
-    long newFilenum = ((FSHLog) log).getFilenum();
+    long newFilenum = HLogUtilsForTests.extractFileNumFromPath(log.getCurrentFileName());
 
     assertTrue("Missing datanode should've triggered a log roll",
         newFilenum > oldFilenum && newFilenum > curTime);
@@ -395,15 +401,17 @@ public class TestLogRolling  {
     // write some more log data (this should use a new hdfs_out)
     writeData(table, 3);
     assertTrue("The log should not roll again.",
-      ((FSHLog) log).getFilenum() == newFilenum);
+      HLogUtilsForTests.extractFileNumFromPath(log.getCurrentFileName()) == newFilenum);
     // kill another datanode in the pipeline, so the replicas will be lower than
     // the configured value 2.
     assertTrue(dfsCluster.stopDataNode(pipeline[1].getName()) != null);
+    Method getNumCurrentReplicas = AbstractWAL.getGetNumCurrentReplicas((FSDataOutputStream)log.getOutputStream());
 
     batchWriteAndWait(table, 3, false, 14000);
+    int replication = getLogReplication(getNumCurrentReplicas, log.getOutputStream());
     assertTrue("LowReplication Roller should've been disabled, current replication="
-            + ((FSHLog) log).getLogReplication(),
-        !log.isLowReplicationRollEnabled());
+            + replication,
+        !((AbstractWAL)log).isLowReplicationRollEnabled());
 
     dfsCluster
         .startDataNodes(TEST_UTIL.getConfiguration(), 1, true, null, null);
@@ -412,6 +420,7 @@ public class TestLogRolling  {
     // and the LowReplication Roller will be enabled.
     log.rollWriter(true);
     batchWriteAndWait(table, 13, true, 10000);
+    replication = getLogReplication(getNumCurrentReplicas, log.getOutputStream());
     assertTrue("New log file should have the default replication instead of " +
       ((FSHLog) log).getLogReplication(),
       ((FSHLog) log).getLogReplication() ==
@@ -420,6 +429,28 @@ public class TestLogRolling  {
         log.isLowReplicationRollEnabled());
   }
 
+  /**
+   * @param getNumCurrentReplicas
+   * @param fStream
+   * @return the replication of the file being written via the passed stream
+   * @throws IOException
+   */
+  private int getLogReplication(Method getNumCurrentReplicas, OutputStream fStream)
+      throws IOException {
+    if (getNumCurrentReplicas != null && fStream != null) {
+      Object repl;
+      try {
+        repl = getNumCurrentReplicas.invoke(fStream, new Object[] {});
+        if (repl instanceof Integer) {
+          return ((Integer) repl).intValue();
+        }
+      } catch (Exception e) {
+        LOG.warn("Unable to get the replication of the log ", e);
+        return 0;
+      }
+    }
+    return 0;
+  }
   /**
    * Test that HLog is rolled when all data nodes in the pipeline have been
    * restarted.
@@ -436,7 +467,7 @@ public class TestLogRolling  {
     Table t = new HTable(TEST_UTIL.getConfiguration(), TableName.META_TABLE_NAME);
     try {
       this.server = cluster.getRegionServer(0);
-      this.log = server.getWAL();
+      this.log = (AbstractWAL) server.getWAL();
 
       // Create the test table and open it
       HTableDescriptor desc = new HTableDescriptor(TableName.valueOf(getName()));
@@ -446,10 +477,10 @@ public class TestLogRolling  {
       HTable table = new HTable(TEST_UTIL.getConfiguration(), desc.getTableName());
 
       server = TEST_UTIL.getRSForFirstRegionInTable(desc.getTableName());
-      this.log = server.getWAL();
+      this.log = (AbstractWAL) server.getWAL();
       final List<Path> paths = new ArrayList<Path>();
       final List<Integer> preLogRolledCalled = new ArrayList<Integer>();
-      paths.add(((FSHLog) log).computeFilename());
+      paths.add(log.getCurrentFileName());
       log.registerWALActionsListener(new WALActionsListener() {
         @Override
         public void preLogRoll(Path oldFile, Path newFile)  {
@@ -476,7 +507,6 @@ public class TestLogRolling  {
             WALEdit logEdit) {}
       });
 
-      assertTrue("Need HDFS-826 for this test", ((FSHLog) log).canGetCurReplicas());
       // don't run this test without append support (HDFS-200 & HDFS-142)
       assertTrue("Need append support for this test", FSUtils
           .isAppendSupported(TEST_UTIL.getConfiguration()));
@@ -486,11 +516,13 @@ public class TestLogRolling  {
       table.setAutoFlush(true, true);
 
       long curTime = System.currentTimeMillis();
-      long oldFilenum = log.getFilenum();
+      LOG.info("log.getCurrentFileName()): " + log.getCurrentFileName());
+      long oldFilenum = HLogUtilsForTests.extractFileNumFromPath(log.getCurrentFileName());
       assertTrue("Log should have a timestamp older than now",
           curTime > oldFilenum && oldFilenum != -1);
 
-      assertTrue("The log shouldn't have rolled yet", oldFilenum == log.getFilenum());
+      assertTrue("The log shouldn't have rolled yet", oldFilenum ==
+          HLogUtilsForTests.extractFileNumFromPath(log.getCurrentFileName()));
 
       // roll all datanodes in the pipeline
       dfsCluster.restartDataNodes();
@@ -501,7 +533,7 @@ public class TestLogRolling  {
 
       // this write should succeed, but trigger a log roll
       writeData(table, 1003);
-      long newFilenum = log.getFilenum();
+      long newFilenum = HLogUtilsForTests.extractFileNumFromPath(log.getCurrentFileName());
 
       assertTrue("Missing datanode should've triggered a log roll",
           newFilenum > oldFilenum && newFilenum > curTime);
@@ -533,11 +565,11 @@ public class TestLogRolling  {
           TEST_UTIL.getConfiguration(), null);
 
         LOG.debug("Reading HLog "+FSUtils.getPath(p));
-        HLog.Reader reader = null;
+        WAL.Reader reader = null;
         try {
           reader = HLogFactory.createReader(fs, p,
               TEST_UTIL.getConfiguration());
-          HLog.Entry entry;
+          WAL.Entry entry;
           while ((entry = reader.next()) != null) {
             LOG.debug("#"+entry.getKey().getLogSeqNum()+": "+entry.getEdit().getCells());
             for (Cell cell : entry.getEdit().getCells()) {
@@ -601,8 +633,7 @@ public class TestLogRolling  {
       table2 = createTestTable(getName() + "1");
 
       server = TEST_UTIL.getRSForFirstRegionInTable(table.getName());
-      this.log = server.getWAL();
-      FSHLog fshLog = (FSHLog)log;
+      this.log = (AbstractWAL) server.getWAL();
       HRegion region = server.getOnlineRegions(table2.getName()).get(0);
       Store s = region.getStore(HConstants.CATALOG_FAMILY);
 
@@ -615,12 +646,12 @@ public class TestLogRolling  {
         admin.flush(table2.getName());
       }
       doPut(table2, 3); // don't flush yet, or compaction might trigger before we roll WAL
-      assertEquals("Should have no WAL after initial writes", 0, fshLog.getNumRolledLogFiles());
+      assertEquals("Should have no WAL after initial writes", 0, log.getNumRolledLogFiles());
       assertEquals(2, s.getStorefilesCount());
 
       // Roll the log and compact table2, to have compaction record in the 2nd WAL.
-      fshLog.rollWriter();
-      assertEquals("Should have WAL; one table is not flushed", 1, fshLog.getNumRolledLogFiles());
+      log.rollWriter();
+      assertEquals("Should have WAL; one table is not flushed", 1, log.getNumRolledLogFiles());
       admin.flush(table2.getName());
       region.compactStores();
       // Wait for compaction in case if flush triggered it before us.
@@ -632,14 +663,14 @@ public class TestLogRolling  {
 
       // Write some value to the table so the WAL cannot be deleted until table is flushed.
       doPut(table, 0); // Now 2nd WAL will have compaction record for table2 and put for table.
-      fshLog.rollWriter(); // 1st WAL deleted, 2nd not deleted yet.
-      assertEquals("Should have WAL; one table is not flushed", 1, fshLog.getNumRolledLogFiles());
+      log.rollWriter(); // 1st WAL deleted, 2nd not deleted yet.
+      assertEquals("Should have WAL; one table is not flushed", 1, log.getNumRolledLogFiles());
 
       // Flush table to make latest WAL obsolete; write another record, and roll again.
       admin.flush(table.getName());
       doPut(table, 1);
-      fshLog.rollWriter(); // Now 2nd WAL is deleted and 3rd is added.
-      assertEquals("Should have 1 WALs at the end", 1, fshLog.getNumRolledLogFiles());
+      log.rollWriter(); // Now 2nd WAL is deleted and 3rd is added.
+      assertEquals("Should have 1 WALs at the end", 1, log.getNumRolledLogFiles());
     } finally {
       if (t != null) t.close();
       if (table != null) table.close();

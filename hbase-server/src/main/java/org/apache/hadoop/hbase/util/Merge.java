@@ -42,7 +42,7 @@ import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.regionserver.HRegion;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.io.WritableComparator;
 import org.apache.hadoop.util.GenericOptionsParser;
 import org.apache.hadoop.util.Tool;
@@ -181,7 +181,7 @@ public class Merge extends Configured implements Tool {
           Bytes.toStringBinary(meta.getRegionName()));
     }
     HRegion merged = null;
-    HLog log = utils.getLog();
+    WALService log = utils.getLog();
     HRegion r1 = HRegion.openHRegion(info1, htd, log, getConf());
     try {
       HRegion r2 = HRegion.openHRegion(info2, htd, log, getConf());

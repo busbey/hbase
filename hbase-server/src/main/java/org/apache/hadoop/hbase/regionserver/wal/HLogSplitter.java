@@ -99,9 +99,9 @@ import org.apache.hadoop.hbase.protobuf.generated.ZooKeeperProtos.SplitLogTask.R
 import org.apache.hadoop.hbase.protobuf.generated.ZooKeeperProtos.StoreSequenceId;
 import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.regionserver.LastSequenceId;
-import org.apache.hadoop.hbase.regionserver.wal.HLog.Entry;
-import org.apache.hadoop.hbase.regionserver.wal.HLog.Reader;
-import org.apache.hadoop.hbase.regionserver.wal.HLog.Writer;
+import org.apache.hadoop.hbase.regionserver.wal.WAL.Entry;
+import org.apache.hadoop.hbase.regionserver.wal.WAL.Reader;
+import org.apache.hadoop.hbase.regionserver.wal.WAL.Writer;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.CancelableProgressable;
 import org.apache.hadoop.hbase.util.ClassSize;
@@ -250,7 +250,7 @@ public class HLogSplitter {
     boolean isCorrupted = false;
     Preconditions.checkState(status == null);
     boolean skipErrors = conf.getBoolean("hbase.hlog.split.skip.errors",
-      HLog.SPLIT_SKIP_ERRORS_DEFAULT);
+      WAL.SPLIT_SKIP_ERRORS_DEFAULT);
     int interval = conf.getInt("hbase.splitlog.report.interval.loglines", 1024);
     Path logPath = logfile.getPath();
     boolean outputSinkStarted = false;
@@ -516,7 +516,7 @@ public class HLogSplitter {
   }
 
   static String getTmpRecoveredEditsFileName(String fileName) {
-    return fileName + HLog.RECOVERED_LOG_TMPFILE_SUFFIX;
+    return fileName + WAL.RECOVERED_LOG_TMPFILE_SUFFIX;
   }
 
   /**
@@ -1399,8 +1399,8 @@ public class HLogSplitter {
      * Map key -> value layout
      * <servername>:<table name> -> Queue<Row>
      */
-    private Map<String, List<Pair<HRegionLocation, HLog.Entry>>> serverToBufferQueueMap =
-        new ConcurrentHashMap<String, List<Pair<HRegionLocation, HLog.Entry>>>();
+    private Map<String, List<Pair<HRegionLocation, WAL.Entry>>> serverToBufferQueueMap =
+        new ConcurrentHashMap<String, List<Pair<HRegionLocation, WAL.Entry>>>();
     private List<Throwable> thrown = new ArrayList<Throwable>();
 
     // The following sink is used in distrubitedLogReplay mode for entries of regions in a disabling
@@ -1445,10 +1445,10 @@ public class HLogSplitter {
       // process workitems
       String maxLocKey = null;
       int maxSize = 0;
-      List<Pair<HRegionLocation, HLog.Entry>> maxQueue = null;
+      List<Pair<HRegionLocation, WAL.Entry>> maxQueue = null;
       synchronized (this.serverToBufferQueueMap) {
         for (String key : this.serverToBufferQueueMap.keySet()) {
-          List<Pair<HRegionLocation, HLog.Entry>> curQueue = this.serverToBufferQueueMap.get(key);
+          List<Pair<HRegionLocation, WAL.Entry>> curQueue = this.serverToBufferQueueMap.get(key);
           if (curQueue.size() > maxSize) {
             maxSize = curQueue.size();
             maxQueue = curQueue;
@@ -1482,7 +1482,7 @@ public class HLogSplitter {
     private void groupEditsByServer(List<Entry> entries) throws IOException {
       Set<TableName> nonExistentTables = null;
       Long cachedLastFlushedSequenceId = -1l;
-      for (HLog.Entry entry : entries) {
+      for (WAL.Entry entry : entries) {
         WALEdit edit = entry.getEdit();
         TableName table = entry.getKey().getTablename();
         // clear scopes which isn't needed for recovery
@@ -1584,13 +1584,13 @@ public class HLogSplitter {
 
         synchronized (serverToBufferQueueMap) {
           locKey = loc.getHostnamePort() + KEY_DELIMITER + table;
-          List<Pair<HRegionLocation, HLog.Entry>> queue = serverToBufferQueueMap.get(locKey);
+          List<Pair<HRegionLocation, WAL.Entry>> queue = serverToBufferQueueMap.get(locKey);
           if (queue == null) {
             queue =
-                Collections.synchronizedList(new ArrayList<Pair<HRegionLocation, HLog.Entry>>());
+                Collections.synchronizedList(new ArrayList<Pair<HRegionLocation, WAL.Entry>>());
             serverToBufferQueueMap.put(locKey, queue);
           }
-          queue.add(new Pair<HRegionLocation, HLog.Entry>(loc, entry));
+          queue.add(new Pair<HRegionLocation, WAL.Entry>(loc, entry));
         }
         // store regions we have recovered so far
         addToRecoveredRegions(loc.getRegionInfo().getEncodedName());
@@ -1659,7 +1659,7 @@ public class HLogSplitter {
       return loc;
     }
 
-    private void processWorkItems(String key, List<Pair<HRegionLocation, HLog.Entry>> actions)
+    private void processWorkItems(String key, List<Pair<HRegionLocation, WAL.Entry>> actions)
         throws IOException {
       RegionServerWriter rsw = null;
 
@@ -1741,7 +1741,7 @@ public class HLogSplitter {
     public boolean flush() throws IOException {
       String curLoc = null;
       int curSize = 0;
-      List<Pair<HRegionLocation, HLog.Entry>> curQueue = null;
+      List<Pair<HRegionLocation, WAL.Entry>> curQueue = null;
       synchronized (this.serverToBufferQueueMap) {
         for (String locationKey : this.serverToBufferQueueMap.keySet()) {
           curQueue = this.serverToBufferQueueMap.get(locationKey);

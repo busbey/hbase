@@ -36,7 +36,7 @@ import org.apache.hadoop.hbase.HTableDescriptor;
  * the assign of the region sequence id.  See {@link #stampRegionSequenceId()}.
  */
 @InterfaceAudience.Private
-class FSWALEntry extends HLog.Entry {
+class FSWALEntry extends WAL.Entry {
   // The below data members are denoted 'transient' just to highlight these are not persisted;
   // they are only in memory and held here while passing over the ring buffer.
   private final transient long sequence;

@@ -50,11 +50,11 @@ import org.apache.hadoop.hbase.Server;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.CoordinatedStateManager;
 import org.apache.hadoop.hbase.client.HConnection;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
 import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
 import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALActionsListener;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
+import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.hbase.replication.ReplicationFactory;
 import org.apache.hadoop.hbase.replication.ReplicationPeers;
 import org.apache.hadoop.hbase.replication.ReplicationQueueInfo;
@@ -196,7 +196,7 @@ public class TestReplicationSourceManager {
 
     List<WALActionsListener> listeners = new ArrayList<WALActionsListener>();
     listeners.add(replication);
-    HLog hlog = HLogFactory.createHLog(fs, utility.getDataTestDir(), logName,
+    WALService hlog = HLogFactory.createHLog(fs, utility.getDataTestDir(), logName,
         conf, listeners, URLEncoder.encode("regionserver:60020", "UTF8"));
     final AtomicLong sequenceId = new AtomicLong(1);
     manager.init();

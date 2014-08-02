@@ -63,8 +63,8 @@ import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.protobuf.generated.ZooKeeperProtos.SplitLogTask.RecoveryMode;
 import org.apache.hadoop.hbase.regionserver.HRegion;
-import org.apache.hadoop.hbase.regionserver.wal.HLog.Entry;
-import org.apache.hadoop.hbase.regionserver.wal.HLog.Reader;
+import org.apache.hadoop.hbase.regionserver.wal.WAL.Entry;
+import org.apache.hadoop.hbase.regionserver.wal.WAL.Reader;
 import org.apache.hadoop.hbase.regionserver.wal.HLogSplitter.CorruptedLogFileException;
 import org.apache.hadoop.hbase.security.User;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -90,7 +90,7 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 
 /**
- * Testing {@link HLog} splitting code.
+ * Testing {@link WALService} splitting code.
  */
 @Category({RegionServerTests.class, LargeTests.class})
 public class TestHLogSplit {
@@ -140,7 +140,7 @@ public class TestHLogSplit {
   public static void setUpBeforeClass() throws Exception {
     FSUtils.setRootDir(TEST_UTIL.getConfiguration(), HBASEDIR);
     TEST_UTIL.getConfiguration().setClass("hbase.regionserver.hlog.writer.impl",
-      InstrumentedSequenceFileLogWriter.class, HLog.Writer.class);
+      InstrumentedSequenceFileLogWriter.class, WAL.Writer.class);
     TEST_UTIL.getConfiguration().setBoolean("dfs.support.broken.append", true);
     TEST_UTIL.getConfiguration().setBoolean("dfs.support.append", true);
     // This is how you turn off shortcircuit read currently.  TODO: Fix.  Should read config.
@@ -282,7 +282,7 @@ public class TestHLogSplit {
           final int numOfWriters = walToKeepOpen + 1;
           // The below method writes numOfWriters files each with ENTRIES entries for a total of numOfWriters * ENTRIES
           // added per column family in the region.
-          HLog.Writer[] writers = null;
+          WAL.Writer[] writers = null;
           try {
             DistributedFileSystem dfs = (DistributedFileSystem)FileSystem.get(conf);
             writers = generateHLogs(dfs, numOfWriters, ENTRIES, walToKeepOpen);
@@ -292,14 +292,14 @@ public class TestHLogSplit {
           // Update counter so has all edits written so far.
           editsCount.addAndGet(numOfWriters * NUM_WRITERS);
           // This WAL should be open still after our call to generateHLogs -- we asked it leave it open.
-          HLog.Writer writer = writers[walToKeepOpen];
+          WAL.Writer writer = writers[walToKeepOpen];
           loop(writer);
           return null;
         }
       });
     }
 
-    private void loop(final HLog.Writer writer) {
+    private void loop(final WAL.Writer writer) {
       byte [] regionBytes = Bytes.toBytes(this.region);
       while (true) {
         try {
@@ -345,8 +345,8 @@ public class TestHLogSplit {
         HRegionInfo.FIRST_META_REGIONINFO.getEncodedName());
     fs.mkdirs(regiondir);
     long now = System.currentTimeMillis();
-    HLog.Entry entry =
-        new HLog.Entry(new HLogKey(encoded,
+    WAL.Entry entry =
+        new WAL.Entry(new HLogKey(encoded,
             TableName.META_TABLE_NAME, 1, now, HConstants.DEFAULT_CLUSTER_ID),
       new WALEdit());
     Path p = HLogSplitter.getRegionSplitEditsPath(fs, entry, HBASEDIR, true);
@@ -367,8 +367,8 @@ public class TestHLogSplit {
         HRegionInfo.FIRST_META_REGIONINFO.getEncodedName());
     fs.mkdirs(regiondir);
     long now = System.currentTimeMillis();
-    HLog.Entry entry =
-        new HLog.Entry(new HLogKey(encoded,
+    WAL.Entry entry =
+        new WAL.Entry(new HLogKey(encoded,
             TableName.META_TABLE_NAME, 1, now, HConstants.DEFAULT_CLUSTER_ID),
       new WALEdit());
     Path parent = HLogUtil.getRegionDirRecoveredEditsDir(regiondir);
@@ -547,7 +547,7 @@ public class TestHLogSplit {
     try {
     Path c1 = new Path(HLOGDIR, HLOG_FILE_PREFIX + "0");
       conf.setClass("hbase.regionserver.hlog.reader.impl",
-          FaultySequenceFileLogReader.class, HLog.Reader.class);
+          FaultySequenceFileLogReader.class, WAL.Reader.class);
       for (FaultySequenceFileLogReader.FailureType  failureType : FaultySequenceFileLogReader.FailureType.values()) {
         conf.set("faultysequencefilelogreader.failuretype", failureType.name());
         generateHLogs(1, ENTRIES, -1);
@@ -577,7 +577,7 @@ public class TestHLogSplit {
 
     try {
       conf.setClass("hbase.regionserver.hlog.reader.impl",
-          FaultySequenceFileLogReader.class, HLog.Reader.class);
+          FaultySequenceFileLogReader.class, WAL.Reader.class);
       conf.set("faultysequencefilelogreader.failuretype", FaultySequenceFileLogReader.FailureType.BEGINNING.name());
       generateHLogs(Integer.MAX_VALUE);
       fs.initialize(fs.getUri(), conf);
@@ -600,7 +600,7 @@ public class TestHLogSplit {
 
     try {
       conf.setClass("hbase.regionserver.hlog.reader.impl",
-          FaultySequenceFileLogReader.class, HLog.Reader.class);
+          FaultySequenceFileLogReader.class, WAL.Reader.class);
       conf.set("faultysequencefilelogreader.failuretype", FaultySequenceFileLogReader.FailureType.BEGINNING.name());
       generateHLogs(-1);
       fs.initialize(fs.getUri(), conf);
@@ -638,9 +638,9 @@ public class TestHLogSplit {
     assertEquals(1, splitLog.length);
 
     int actualCount = 0;
-    HLog.Reader in = HLogFactory.createReader(fs, splitLog[0], conf);
+    WAL.Reader in = HLogFactory.createReader(fs, splitLog[0], conf);
     @SuppressWarnings("unused")
-    HLog.Entry entry;
+    WAL.Entry entry;
     while ((entry = in.next()) != null) ++actualCount;
     assertEquals(entryCount-1, actualCount);
 
@@ -669,9 +669,9 @@ public class TestHLogSplit {
     assertEquals(1, splitLog.length);
 
     int actualCount = 0;
-    HLog.Reader in = HLogFactory.createReader(fs, splitLog[0], conf);
+    WAL.Reader in = HLogFactory.createReader(fs, splitLog[0], conf);
     @SuppressWarnings("unused")
-    HLog.Entry entry;
+    WAL.Entry entry;
     while ((entry = in.next()) != null) ++actualCount;
     assertEquals(entryCount, actualCount);
 
@@ -729,7 +729,7 @@ public class TestHLogSplit {
   @Test(timeout=300000, expected = IOException.class)
   public void testSplitWillFailIfWritingToRegionFails() throws Exception {
     //leave 5th log open so we could append the "trap"
-    HLog.Writer [] writer = generateHLogs(4);
+    WAL.Writer [] writer = generateHLogs(4);
 
     fs.initialize(fs.getUri(), conf);
 
@@ -808,11 +808,11 @@ public class TestHLogSplit {
     // Set up a splitter that will throw an IOE on the output side
     HLogSplitter logSplitter = new HLogSplitter(
         conf, HBASEDIR, fs, null, null, this.mode) {
-      protected HLog.Writer createWriter(FileSystem fs,
+      protected WAL.Writer createWriter(FileSystem fs,
           Path logfile, Configuration conf) throws IOException {
-        HLog.Writer mockWriter = Mockito.mock(HLog.Writer.class);
+        WAL.Writer mockWriter = Mockito.mock(WAL.Writer.class);
         Mockito.doThrow(new IOException("Injected")).when(
-          mockWriter).append(Mockito.<HLog.Entry>any());
+          mockWriter).append(Mockito.<WAL.Entry>any());
         return mockWriter;
       }
     };
@@ -1002,9 +1002,9 @@ public class TestHLogSplit {
         localConf, HBASEDIR, fs, null, null, this.mode) {
 
       /* Produce a mock writer that doesn't write anywhere */
-      protected HLog.Writer createWriter(FileSystem fs, Path logfile, Configuration conf)
+      protected WAL.Writer createWriter(FileSystem fs, Path logfile, Configuration conf)
       throws IOException {
-        HLog.Writer mockWriter = Mockito.mock(HLog.Writer.class);
+        WAL.Writer mockWriter = Mockito.mock(WAL.Writer.class);
         Mockito.doAnswer(new Answer<Void>() {
           int expectedIndex = 0;
 
@@ -1017,7 +1017,7 @@ public class TestHLogSplit {
                 Thread.currentThread().interrupt();
               }
             }
-            HLog.Entry entry = (Entry) invocation.getArguments()[0];
+            WAL.Entry entry = (Entry) invocation.getArguments()[0];
             WALEdit edit = entry.getEdit();
             List<Cell> cells = edit.getCells();
             assertEquals(1, cells.size());
@@ -1028,7 +1028,7 @@ public class TestHLogSplit {
             expectedIndex++;
             return null;
           }
-        }).when(mockWriter).append(Mockito.<HLog.Entry>any());
+        }).when(mockWriter).append(Mockito.<WAL.Entry>any());
         return mockWriter;
       }
 
@@ -1036,18 +1036,18 @@ public class TestHLogSplit {
       protected Reader getReader(FileSystem fs, Path curLogFile,
           Configuration conf, CancelableProgressable reporter) throws IOException {
         Reader mockReader = Mockito.mock(Reader.class);
-        Mockito.doAnswer(new Answer<HLog.Entry>() {
+        Mockito.doAnswer(new Answer<WAL.Entry>() {
           int index = 0;
 
           @Override
-          public HLog.Entry answer(InvocationOnMock invocation) throws Throwable {
+          public WAL.Entry answer(InvocationOnMock invocation) throws Throwable {
             if (index >= numFakeEdits) return null;
 
             // Generate r0 through r4 in round robin fashion
             int regionIdx = index % regions.size();
             byte region[] = new byte[] {(byte)'r', (byte) (0x30 + regionIdx)};
 
-            HLog.Entry ret = createTestEntry(TABLE_NAME, region,
+            WAL.Entry ret = createTestEntry(TABLE_NAME, region,
                 Bytes.toBytes((int)(index / regions.size())),
                 FAMILY, QUALIFIER, VALUE, index);
             index++;
@@ -1175,9 +1175,9 @@ public class TestHLogSplit {
 
     HLogSplitter logSplitter = new HLogSplitter(
         conf, HBASEDIR, fs, null, null, this.mode) {
-      protected HLog.Writer createWriter(FileSystem fs, Path logfile, Configuration conf)
+      protected WAL.Writer createWriter(FileSystem fs, Path logfile, Configuration conf)
       throws IOException {
-        HLog.Writer writer = HLogFactory.createRecoveredEditsWriter(fs, logfile, conf);
+        WAL.Writer writer = HLogFactory.createRecoveredEditsWriter(fs, logfile, conf);
         // After creating writer, simulate region's
         // replayRecoveredEditsIfAny() which gets SplitEditFiles of this
         // region and delete them, excluding files with '.temp' suffix.
@@ -1216,12 +1216,13 @@ public class TestHLogSplit {
   }
 
 
-  private HLog.Writer [] generateHLogs(int leaveOpen) throws IOException {
+  private WAL.Writer [] generateHLogs(int leaveOpen) throws IOException {
     return generateHLogs(NUM_WRITERS, ENTRIES, leaveOpen);
   }
 
-  private HLog.Writer [] generateHLogs(final int writers, final int entries, final int leaveOpen) throws IOException {
-    return generateHLogs((DistributedFileSystem)this.fs, writers, entries, leaveOpen);
+  private WAL.Writer[] generateHLogs(final int writers, final int entries, final int leaveOpen)
+      throws IOException {
+    return generateHLogs((DistributedFileSystem) this.fs, writers, entries, leaveOpen);
   }
 
   private static void makeRegionDirs(FileSystem fs, List<String> regions) throws IOException {
@@ -1231,11 +1232,11 @@ public class TestHLogSplit {
     }
   }
 
-  private static HLog.Writer [] generateHLogs(final DistributedFileSystem dfs, int writers, int entries, int leaveOpen)
-  throws IOException {
+  private static WAL.Writer[] generateHLogs(final DistributedFileSystem dfs, int writers,
+      int entries, int leaveOpen) throws IOException {
     makeRegionDirs(dfs, REGIONS);
     dfs.mkdirs(HLOGDIR);
-    HLog.Writer [] ws = new HLog.Writer[writers];
+    WAL.Writer [] ws = new WAL.Writer[writers];
     int seq = 0;
     for (int i = 0; i < writers; i++) {
       ws[i] = HLogFactory.createWALWriter(dfs, new Path(HLOGDIR, HLOG_FILE_PREFIX + i), dfs.getConf());
@@ -1350,8 +1351,8 @@ public class TestHLogSplit {
 
   @SuppressWarnings("unused")
   private void dumpHLog(Path log, FileSystem fs, Configuration conf) throws IOException {
-    HLog.Entry entry;
-    HLog.Reader in = HLogFactory.createReader(fs, log, conf);
+    WAL.Entry entry;
+    WAL.Reader in = HLogFactory.createReader(fs, log, conf);
     while ((entry = in.next()) != null) {
       System.out.println(entry);
     }
@@ -1359,7 +1360,7 @@ public class TestHLogSplit {
 
   private int countHLog(Path log, FileSystem fs, Configuration conf) throws IOException {
     int count = 0;
-    HLog.Reader in = HLogFactory.createReader(fs, log, conf);
+    WAL.Reader in = HLogFactory.createReader(fs, log, conf);
     while (in.next() != null) {
       count++;
     }
@@ -1367,7 +1368,7 @@ public class TestHLogSplit {
   }
 
 
-  public static long appendEntry(HLog.Writer writer, TableName table, byte[] region,
+  public static long appendEntry(WAL.Writer writer, TableName table, byte[] region,
                           byte[] row, byte[] family, byte[] qualifier,
                           byte[] value, long seq)
           throws IOException {
@@ -1378,7 +1379,7 @@ public class TestHLogSplit {
     return seq;
   }
 
-  private static HLog.Entry createTestEntry(
+  private static WAL.Entry createTestEntry(
       TableName table, byte[] region,
       byte[] row, byte[] family, byte[] qualifier,
       byte[] value, long seq) {
@@ -1386,14 +1387,14 @@ public class TestHLogSplit {
     WALEdit edit = new WALEdit();
     seq++;
     edit.add(new KeyValue(row, family, qualifier, time, KeyValue.Type.Put, value));
-    return new HLog.Entry(new HLogKey(region, table, seq, time,
+    return new WAL.Entry(new HLogKey(region, table, seq, time,
         HConstants.DEFAULT_CLUSTER_ID), edit);
   }
 
 
   private void injectEmptyFile(String suffix, boolean closeFile)
           throws IOException {
-    HLog.Writer writer = HLogFactory.createWALWriter(
+    WAL.Writer writer = HLogFactory.createWALWriter(
         fs, new Path(HLOGDIR, HLOG_FILE_PREFIX + suffix), conf);
     if (closeFile) writer.close();
   }
@@ -1435,11 +1436,11 @@ public class TestHLogSplit {
   }
 
   private boolean logsAreEqual(Path p1, Path p2) throws IOException {
-    HLog.Reader in1, in2;
+    WAL.Reader in1, in2;
     in1 = HLogFactory.createReader(fs, p1, conf);
     in2 = HLogFactory.createReader(fs, p2, conf);
-    HLog.Entry entry1;
-    HLog.Entry entry2;
+    WAL.Entry entry1;
+    WAL.Entry entry2;
     while ((entry1 = in1.next()) != null) {
       entry2 = in2.next();
       if ((entry1.getKey().compareTo(entry2.getKey()) != 0) ||

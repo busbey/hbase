@@ -58,7 +58,7 @@ import org.apache.hadoop.hbase.filter.FilterBase;
 import org.apache.hadoop.hbase.filter.PrefixFilter;
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
 import org.apache.hadoop.hbase.mapreduce.Import.KeyValueImporter;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALActionsListener;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
@@ -646,7 +646,7 @@ public class TestImportExport {
 
     // Register the hlog listener for the import table
     TableWALActionListener walListener = new TableWALActionListener(importTableName);
-    HLog hLog = UTIL.getMiniHBaseCluster().getRegionServer(0).getWAL();
+    WALService hLog = UTIL.getMiniHBaseCluster().getRegionServer(0).getWAL();
     hLog.registerWALActionsListener(walListener);
 
     // Run the import with SKIP_WAL

@@ -41,7 +41,7 @@ import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.Stoppable;
-import org.apache.hadoop.hbase.regionserver.wal.HLog;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
 import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 import org.apache.hadoop.hbase.replication.ChainWALEntryFilter;
@@ -95,7 +95,7 @@ public class ReplicationSource extends Thread
   // Max number of entries in entriesArray
   private int replicationQueueNbCapacity;
   // Our reader for the current log
-  private HLog.Reader reader;
+  private WAL.Reader reader;
   // Last position in the log that we sent to ZooKeeper
   private long lastLoggedPosition = -1;
   // Path of the current log
@@ -341,7 +341,7 @@ public class ReplicationSource extends Thread
 
       boolean gotIOE = false;
       currentNbOperations = 0;
-      List<HLog.Entry> entries = new ArrayList<HLog.Entry>(1);
+      List<WAL.Entry> entries = new ArrayList<WAL.Entry>(1);
       currentSize = 0;
       try {
         if (readAllEntriesToReplicateOrNextFile(currentWALisBeingWrittenTo, entries)) {
@@ -419,7 +419,7 @@ public class ReplicationSource extends Thread
    * @throws IOException
    */
   protected boolean readAllEntriesToReplicateOrNextFile(boolean currentWALisBeingWrittenTo,
-      List<HLog.Entry> entries) throws IOException{
+      List<WAL.Entry> entries) throws IOException {
     long seenEntries = 0;
     if (LOG.isTraceEnabled()) {
       LOG.trace("Seeking in " + this.currentPath + " at position "
@@ -427,7 +427,7 @@ public class ReplicationSource extends Thread
     }
     this.repLogReader.seek();
     long positionBeforeRead = this.repLogReader.getPosition();
-    HLog.Entry entry =
+    WAL.Entry entry =
         this.repLogReader.readNextAndSetPosition();
     while (entry != null) {
       this.metrics.incrLogEditsRead();
@@ -525,7 +525,7 @@ public class ReplicationSource extends Thread
                 new Path(manager.getLogDir().getParent(), curDeadServerName);
             Path[] locs = new Path[] {
                 new Path(deadRsDirectory, currentPath.getName()),
-                new Path(deadRsDirectory.suffix(HLog.SPLITTING_EXT),
+                new Path(deadRsDirectory.suffix(WAL.SPLITTING_EXT),
                                           currentPath.getName()),
             };
             for (Path possibleLogLocation : locs) {
@@ -655,7 +655,7 @@ public class ReplicationSource extends Thread
    * @param currentWALisBeingWrittenTo was the current WAL being (seemingly)
    * written to when this method was called
    */
-  protected void shipEdits(boolean currentWALisBeingWrittenTo, List<HLog.Entry> entries) {
+  protected void shipEdits(boolean currentWALisBeingWrittenTo, List<WAL.Entry> entries) {
     int sleepMultiplier = 1;
     if (entries.isEmpty()) {
       LOG.warn("Was given 0 edits to ship");
