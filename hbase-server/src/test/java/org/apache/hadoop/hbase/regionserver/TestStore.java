@@ -70,8 +70,8 @@ import org.apache.hadoop.hbase.io.hfile.HFileContextBuilder;
 import org.apache.hadoop.hbase.monitoring.MonitoredTask;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionConfiguration;
 import org.apache.hadoop.hbase.regionserver.compactions.DefaultCompactor;
-import org.apache.hadoop.hbase.regionserver.wal.WALService;
-import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
+import org.apache.hadoop.hbase.regionserver.wal.DefaultWALProvider;
+import org.apache.hadoop.hbase.regionserver.wal.WALFactory;
 import org.apache.hadoop.hbase.security.User;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
@@ -168,8 +168,7 @@ public class TestStore {
     //Setting up a Store
     Path basedir = new Path(DIR+methodName);
     Path tableDir = FSUtils.getTableDir(basedir, htd.getTableName());
-    String logName = "logs";
-    Path logdir = new Path(basedir, logName);
+    final Path logdir = new Path(basedir, DefaultWALProvider.getWALDirectoryName(methodName));
 
     FileSystem fs = FileSystem.get(conf);
 
@@ -181,8 +180,11 @@ public class TestStore {
       htd.addFamily(hcd);
     }
     HRegionInfo info = new HRegionInfo(htd.getTableName(), null, null, false);
-    WALService hlog = HLogFactory.createHLog(fs, basedir, logName, conf);
-    HRegion region = new HRegion(tableDir, hlog, fs, conf, info, htd, null);
+    final Configuration walConf = new Configuration(conf);
+    FSUtils.setRootDir(walConf, basedir);
+    final WALFactory wals = new WALFactory(walConf, null, methodName);
+    HRegion region = new HRegion(tableDir, wals.getWAL(info.getEncodedNameAsBytes()), fs, conf,
+        info, htd, null);
 
     store = new HStore(region, hcd, conf);
     return store;

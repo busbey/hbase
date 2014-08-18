@@ -88,11 +88,13 @@ import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.protobuf.generated.AdminProtos.GetRegionInfoResponse.CompactionState;
 import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.regionserver.HRegionServer;
+import org.apache.hadoop.hbase.regionserver.wal.DefaultWALProvider;
 import org.apache.hadoop.hbase.regionserver.wal.WAL;
-import org.apache.hadoop.hbase.regionserver.wal.WALService;
-import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
-import org.apache.hadoop.hbase.regionserver.wal.HLogUtil;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
+import org.apache.hadoop.hbase.regionserver.wal.WALFactory;
+import org.apache.hadoop.hbase.regionserver.wal.WALKey;
+import org.apache.hadoop.hbase.regionserver.wal.WALProvider;
+import org.apache.hadoop.hbase.regionserver.wal.WALSplitter;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.testclassification.MasterTests;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -236,7 +238,7 @@ public class TestDistributedLogSplitting {
       }
       if (foundRs) break;
     }
-    final Path logDir = new Path(rootdir, HLogUtil.getHLogDirectoryName(hrs
+    final Path logDir = new Path(rootdir, DefaultWALProvider.getWALDirectoryName(hrs
         .getServerName().toString()));
 
     LOG.info("#regions = " + regions.size());
@@ -248,7 +250,8 @@ public class TestDistributedLogSplitting {
         it.remove();
       }
     }
-    makeHLog(hrs.getWAL(), regions, "table", "family", NUM_LOG_LINES, 100);
+    
+    makeWAL(hrs, regions, "table", "family", NUM_LOG_LINES, 100);
 
     slm.splitLogDistributed(logDir);
 
@@ -257,12 +260,12 @@ public class TestDistributedLogSplitting {
 
       Path tdir = FSUtils.getTableDir(rootdir, table);
       Path editsdir =
-        HLogUtil.getRegionDirRecoveredEditsDir(HRegion.getRegionDir(tdir, hri.getEncodedName()));
+        WALSplitter.getRegionDirRecoveredEditsDir(HRegion.getRegionDir(tdir, hri.getEncodedName()));
       LOG.debug("checking edits dir " + editsdir);
       FileStatus[] files = fs.listStatus(editsdir);
-      assertTrue(files.length > 1);
+      assertTrue("edits dir should have more than a single file in it. instead has " + files.length, files.length > 1);
       for (int i = 0; i < files.length; i++) {
-        int c = countHLog(files[i].getPath(), fs, conf);
+        int c = countWAL(files[i].getPath(), fs, conf);
         count += c;
       }
       LOG.info(count + " edits in " + files.length + " recovered edits files.");
@@ -291,7 +294,7 @@ public class TestDistributedLogSplitting {
 
     HRegionServer hrs = findRSToKill(false, "table");
     List<HRegionInfo> regions = ProtobufUtil.getOnlineRegions(hrs.getRSRpcServices());
-    makeHLog(hrs.getWAL(), regions, "table", "family", NUM_LOG_LINES, 100);
+    makeWAL(hrs, regions, "table", "family", NUM_LOG_LINES, 100);
 
     // wait for abort completes
     this.abortRSAndVerifyRecovery(hrs, ht, zkw, NUM_REGIONS_TO_CREATE, NUM_LOG_LINES);
@@ -389,7 +392,7 @@ public class TestDistributedLogSplitting {
 
     HRegionServer hrs = findRSToKill(true, "table");
     List<HRegionInfo> regions = ProtobufUtil.getOnlineRegions(hrs.getRSRpcServices());
-    makeHLog(hrs.getWAL(), regions, "table", "family", NUM_LOG_LINES, 100);
+    makeWAL(hrs, regions, "table", "family", NUM_LOG_LINES, 100);
 
     this.abortRSAndVerifyRecovery(hrs, ht, zkw, NUM_REGIONS_TO_CREATE, NUM_LOG_LINES);
     ht.close();
@@ -457,7 +460,7 @@ public class TestDistributedLogSplitting {
 
     HRegionServer hrs = findRSToKill(false, "table");
     List<HRegionInfo> regions = ProtobufUtil.getOnlineRegions(hrs.getRSRpcServices());
-    makeHLog(hrs.getWAL(), regions, "table", "family", NUM_LOG_LINES, 100);
+    makeWAL(hrs, regions, "table", "family", NUM_LOG_LINES, 100);
 
     // abort master
     abortMaster(cluster);
@@ -514,7 +517,7 @@ public class TestDistributedLogSplitting {
 
     HRegionServer hrs = findRSToKill(false, "table");
     List<HRegionInfo> regions = ProtobufUtil.getOnlineRegions(hrs.getRSRpcServices());
-    makeHLog(hrs.getWAL(), regions, "table", "family", NUM_LOG_LINES, 100);
+    makeWAL(hrs, regions, "table", "family", NUM_LOG_LINES, 100);
 
     // abort master
     abortMaster(cluster);
@@ -577,7 +580,7 @@ public class TestDistributedLogSplitting {
     HRegionServer hrs1 = findRSToKill(false, "table");
     regions = ProtobufUtil.getOnlineRegions(hrs1.getRSRpcServices());
 
-    makeHLog(hrs1.getWAL(), regions, "table", "family", NUM_LOG_LINES, 100);
+    makeWAL(hrs1, regions, "table", "family", NUM_LOG_LINES, 100);
 
     // abort RS1
     LOG.info("Aborting region server: " + hrs1.getServerName());
@@ -791,8 +794,8 @@ public class TestDistributedLogSplitting {
         it.remove();
       }
     }
-    makeHLog(hrs.getWAL(), regions, "disableTable", "family", NUM_LOG_LINES, 100, false);
-    makeHLog(hrs.getWAL(), regions, "table", "family", NUM_LOG_LINES, 100);
+    makeWAL(hrs, regions, "disableTable", "family", NUM_LOG_LINES, 100, false);
+    makeWAL(hrs, regions, "table", "family", NUM_LOG_LINES, 100);
 
     LOG.info("Disabling table\n");
     TEST_UTIL.getHBaseAdmin().disableTable(TableName.valueOf("disableTable"));
@@ -836,13 +839,13 @@ public class TestDistributedLogSplitting {
     Path tdir = FSUtils.getTableDir(rootdir, TableName.valueOf("disableTable"));
     for (HRegionInfo hri : regions) {
       Path editsdir =
-        HLogUtil.getRegionDirRecoveredEditsDir(HRegion.getRegionDir(tdir, hri.getEncodedName()));
+        WALSplitter.getRegionDirRecoveredEditsDir(HRegion.getRegionDir(tdir, hri.getEncodedName()));
       LOG.debug("checking edits dir " + editsdir);
       if(!fs.exists(editsdir)) continue;
       FileStatus[] files = fs.listStatus(editsdir);
       if(files != null) {
         for(FileStatus file : files) {
-          int c = countHLog(file.getPath(), fs, conf);
+          int c = countWAL(file.getPath(), fs, conf);
           count += c;
           LOG.info(c + " edits in " + file.getPath());
         }
@@ -857,7 +860,7 @@ public class TestDistributedLogSplitting {
     // clean up
     for (HRegionInfo hri : regions) {
       Path editsdir =
-        HLogUtil.getRegionDirRecoveredEditsDir(HRegion.getRegionDir(tdir, hri.getEncodedName()));
+        WALSplitter.getRegionDirRecoveredEditsDir(HRegion.getRegionDir(tdir, hri.getEncodedName()));
       fs.delete(editsdir, true);
     }
     disablingHT.close();
@@ -962,12 +965,12 @@ public class TestDistributedLogSplitting {
     HRegionServer hrs = findRSToKill(false, "table");
     Path rootdir = FSUtils.getRootDir(conf);
     final Path logDir = new Path(rootdir,
-        HLogUtil.getHLogDirectoryName(hrs.getServerName().toString()));
+        DefaultWALProvider.getWALDirectoryName(hrs.getServerName().toString()));
 
     installTable(new ZooKeeperWatcher(conf, "table-creation", null),
         "table", "family", 40);
 
-    makeHLog(hrs.getWAL(), ProtobufUtil.getOnlineRegions(hrs.getRSRpcServices()),
+    makeWAL(hrs, ProtobufUtil.getOnlineRegions(hrs.getRSRpcServices()),
       "table", "family", NUM_LOG_LINES, 100);
 
     new Thread() {
@@ -1245,8 +1248,8 @@ public class TestDistributedLogSplitting {
       WALEdit e = new WALEdit();
       value++;
       e.add(new KeyValue(row, family, qualifier, timeStamp, Bytes.toBytes(value)));
-      hrs.getWAL().append(curRegionInfo, tableName, e,
-        System.currentTimeMillis(), htd, sequenceId);
+      hrs.getWAL().append(htd, curRegionInfo, new WALKey(curRegionInfo.getEncodedNameAsBytes(),
+          tableName, System.currentTimeMillis()), e, sequenceId, true, null);
     }
     hrs.getWAL().sync();
     hrs.getWAL().close();
@@ -1337,8 +1340,8 @@ public class TestDistributedLogSplitting {
       WALEdit e = new WALEdit();
       value++;
       e.add(new KeyValue(row, family, qualifier, timeStamp, Bytes.toBytes(value)));
-      hrs.getWAL().append(curRegionInfo, tableName, e,
-        System.currentTimeMillis(), htd, sequenceId);
+      hrs.getWAL().append(htd, curRegionInfo, new WALKey(curRegionInfo.getEncodedNameAsBytes(),
+          tableName, System.currentTimeMillis()), e, sequenceId, true, null);
     }
     hrs.getWAL().sync();
     hrs.getWAL().close();
@@ -1381,27 +1384,24 @@ public class TestDistributedLogSplitting {
     FileSystem fs = master.getMasterFileSystem().getFileSystem();
     Path tableDir = FSUtils.getTableDir(FSUtils.getRootDir(conf), TableName.valueOf("table"));
     List<Path> regionDirs = FSUtils.getRegionDirs(fs, tableDir);
-    HLogUtil.writeRegionOpenSequenceIdFile(fs, regionDirs.get(0) , 1L, 1000L);
+    WALSplitter.writeRegionOpenSequenceIdFile(fs, regionDirs.get(0) , 1L, 1000L);
     // current SeqId file has seqid=1001
-    HLogUtil.writeRegionOpenSequenceIdFile(fs, regionDirs.get(0) , 1L, 1000L);
+    WALSplitter.writeRegionOpenSequenceIdFile(fs, regionDirs.get(0) , 1L, 1000L);
     // current SeqId file has seqid=2001
-    assertEquals(3001, HLogUtil.writeRegionOpenSequenceIdFile(fs, regionDirs.get(0) , 3L, 1000L));
+    assertEquals(3001, WALSplitter.writeRegionOpenSequenceIdFile(fs, regionDirs.get(0) , 3L, 1000L));
     
-    Path editsdir = HLogUtil.getRegionDirRecoveredEditsDir(regionDirs.get(0));
+    Path editsdir = WALSplitter.getRegionDirRecoveredEditsDir(regionDirs.get(0));
     FileStatus[] files = FSUtils.listStatus(fs, editsdir, new PathFilter() {
       @Override
       public boolean accept(Path p) {
-        if (p.getName().endsWith(WAL.SEQUENCE_ID_FILE_SUFFIX)) {
-          return true;
-        }
-        return false;
+        return WALSplitter.isSequenceIdFile(p);
       }
     });
     // only one seqid file should exist
     assertEquals(1, files.length);
     
     // verify all seqId files aren't treated as recovered.edits files
-    NavigableSet<Path> recoveredEdits = HLogUtil.getSplitEditFilesSorted(fs, regionDirs.get(0));
+    NavigableSet<Path> recoveredEdits = WALSplitter.getSplitEditFilesSorted(fs, regionDirs.get(0));
     assertEquals(0, recoveredEdits.size());
     
     ht.close();
@@ -1488,12 +1488,12 @@ public class TestDistributedLogSplitting {
     }
   }
 
-  public void makeHLog(WALService log, List<HRegionInfo> regions, String tname, String fname,
+  public void makeWAL(HRegionServer hrs, List<HRegionInfo> regions, String tname, String fname,
       int num_edits, int edit_size) throws IOException {
-    makeHLog(log, regions, tname, fname, num_edits, edit_size, true);
+    makeWAL(hrs, regions, tname, fname, num_edits, edit_size, true);
   }
 
-  public void makeHLog(WALService log, List<HRegionInfo> regions, String tname, String fname,
+  public void makeWAL(HRegionServer hrs, List<HRegionInfo> regions, String tname, String fname,
       int num_edits, int edit_size, boolean closeLog) throws IOException {
     TableName fullTName = TableName.valueOf(tname);
     // remove root and meta region
@@ -1526,10 +1526,13 @@ public class TestDistributedLogSplitting {
     }
     int n = hris.size();
     int[] counts = new int[n];
+    // sync every ~30k to line up with desired wal rolls
+    final int syncEvery = 30 * 1024 / edit_size;
     if (n > 0) {
       for (int i = 0; i < num_edits; i += 1) {
         WALEdit e = new WALEdit();
         HRegionInfo curRegionInfo = hris.get(i % n);
+        final WAL log = hrs.getWAL(curRegionInfo);
         byte[] startRow = curRegionInfo.getStartKey();
         if (startRow == null || startRow.length == 0) {
           startRow = new byte[] { 0, 0, 0, 0, 1 };
@@ -1540,13 +1543,24 @@ public class TestDistributedLogSplitting {
                                              // key
         byte[] qualifier = Bytes.toBytes("c" + Integer.toString(i));
         e.add(new KeyValue(row, family, qualifier, System.currentTimeMillis(), value));
-        log.append(curRegionInfo, fullTName, e, System.currentTimeMillis(), htd, sequenceId);
+        log.append(htd, curRegionInfo, new WALKey(curRegionInfo.getEncodedNameAsBytes(), fullTName,
+            System.currentTimeMillis()), e, sequenceId, true, null);
+        if (0 == i % syncEvery) {
+          log.sync();
+        }
         counts[i % n] += 1;
       }
     }
-    log.sync();
-    if(closeLog) {
-      log.close();
+    // done as two passes because the regions might share logs. close is idempotent, but sync will cause errors if done on a closed log.
+    for (HRegionInfo info : hris) {
+      final WAL log = hrs.getWAL(info);
+      log.sync();
+    }
+    if (closeLog) {
+      for (HRegionInfo info : hris) {
+        final WAL log = hrs.getWAL(info);
+        log.close();
+      }
     }
     for (int i = 0; i < n; i++) {
       LOG.info("region " + hris.get(i).getRegionNameAsString() + " has " + counts[i] + " edits");
@@ -1554,14 +1568,23 @@ public class TestDistributedLogSplitting {
     return;
   }
 
-  private int countHLog(Path log, FileSystem fs, Configuration conf)
+  private int countWAL(Path log, FileSystem fs, Configuration conf)
   throws IOException {
     int count = 0;
-    WAL.Reader in = HLogFactory.createReader(fs, log, conf);
-    WAL.Entry e;
-    while ((e = in.next()) != null) {
-      if (!WALEdit.isMetaEditFamily(e.getEdit().getCells().get(0))) {
-        count++;
+    WALProvider.Reader in = WALFactory.createReader(fs, log, conf);
+    try {
+      WALProvider.Entry e;
+      while ((e = in.next()) != null) {
+        if (!WALEdit.isMetaEditFamily(e.getEdit().getCells().get(0))) {
+          count++;
+        }
+      }
+    } finally {
+      try {
+        in.close();
+      } catch (IOException exception) {
+        LOG.warn("Problem closing wal: " + exception.getMessage());
+        LOG.debug("exception details.", exception);
       }
     }
     return count;

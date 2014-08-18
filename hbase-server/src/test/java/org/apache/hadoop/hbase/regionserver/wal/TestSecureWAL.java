@@ -44,6 +44,7 @@ import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.io.crypto.KeyProviderForTesting;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.log4j.Level;
 
 import org.junit.BeforeClass;
@@ -51,8 +52,8 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 @Category({RegionServerTests.class, MediumTests.class})
-public class TestSecureHLog {
-  static final Log LOG = LogFactory.getLog(TestSecureHLog.class);
+public class TestSecureWAL {
+  static final Log LOG = LogFactory.getLog(TestSecureWAL.class);
   static {
     ((Log4JLogger)LogFactory.getLog("org.apache.hadoop.hbase.regionserver.wal"))
       .getLogger().setLevel(Level.ALL);
@@ -65,15 +66,16 @@ public class TestSecureHLog {
     conf.set(HConstants.CRYPTO_KEYPROVIDER_CONF_KEY, KeyProviderForTesting.class.getName());
     conf.set(HConstants.CRYPTO_MASTERKEY_NAME_CONF_KEY, "hbase");
     conf.setClass("hbase.regionserver.hlog.reader.impl", SecureProtobufLogReader.class,
-      WAL.Reader.class);
+      WALProvider.Reader.class);
     conf.setClass("hbase.regionserver.hlog.writer.impl", SecureProtobufLogWriter.class,
-      WAL.Writer.class);
+      WALProvider.Writer.class);
     conf.setBoolean(HConstants.ENABLE_WAL_ENCRYPTION, true);
+    FSUtils.setRootDir(conf, TEST_UTIL.getDataTestDir());
   }
 
   @Test
-  public void testSecureHLog() throws Exception {
-    TableName tableName = TableName.valueOf("TestSecureHLog");
+  public void testSecureWAL() throws Exception {
+    TableName tableName = TableName.valueOf("TestSecureWAL");
     HTableDescriptor htd = new HTableDescriptor(tableName);
     htd.addFamily(new HColumnDescriptor(tableName.getName()));
     HRegionInfo regioninfo = new HRegionInfo(tableName,
@@ -83,20 +85,21 @@ public class TestSecureHLog {
     final byte[] family = Bytes.toBytes("family");
     final byte[] value = Bytes.toBytes("Test value");
     FileSystem fs = TEST_UTIL.getTestFileSystem();
-    Path logDir = TEST_UTIL.getDataTestDir("log");
+    final WALFactory wals = new WALFactory(TEST_UTIL.getConfiguration(), null, "TestSecureWAL");
     final AtomicLong sequenceId = new AtomicLong(1);
 
     // Write the WAL
-    WALService wal = HLogFactory.createHLog(fs, TEST_UTIL.getDataTestDir(), logDir.toString(),
-      TEST_UTIL.getConfiguration());
+    final WAL wal = wals.getWAL(regioninfo.getEncodedNameAsBytes());
 
     for (int i = 0; i < total; i++) {
       WALEdit kvs = new WALEdit();
       kvs.add(new KeyValue(row, family, Bytes.toBytes(i), value));
-      wal.append(regioninfo, tableName, kvs, System.currentTimeMillis(), htd, sequenceId);
+      wal.append(htd, regioninfo, new WALKey(regioninfo.getEncodedNameAsBytes(), tableName,
+          System.currentTimeMillis()), kvs, sequenceId, true, null);
     }
-    final Path walPath = ((AbstractWAL) wal).getCurrentFileName();
-    wal.close();
+    wal.sync();
+    final Path walPath = DefaultWALProvider.getCurrentFileName(wal);
+    wals.close();
 
     // Insure edits are not plaintext
     long length = fs.getFileStatus(walPath).getLen();
@@ -107,10 +110,9 @@ public class TestSecureHLog {
     assertFalse("Cells appear to be plaintext", Bytes.contains(fileData, value));
 
     // Confirm the WAL can be read back
-    WAL.Reader reader = HLogFactory.createReader(TEST_UTIL.getTestFileSystem(), walPath,
-      TEST_UTIL.getConfiguration());
+    WALProvider.Reader reader = wals.createReader(TEST_UTIL.getTestFileSystem(), walPath);
     int count = 0;
-    WAL.Entry entry = new WAL.Entry();
+    WALProvider.Entry entry = new WALProvider.Entry();
     while (reader.next(entry) != null) {
       count++;
       List<Cell> cells = entry.getEdit().getCells();

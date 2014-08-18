@@ -29,7 +29,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
+import org.apache.hadoop.hbase.regionserver.wal.WALKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 import org.apache.hadoop.hbase.util.Bytes;
 
@@ -79,13 +79,13 @@ implements WALObserver {
 
   @Override
   public void postWALWrite(ObserverContext<WALCoprocessorEnvironment> env,
-      HRegionInfo info, HLogKey logKey, WALEdit logEdit) throws IOException {
+      HRegionInfo info, WALKey logKey, WALEdit logEdit) throws IOException {
     postWALWriteCalled = true;
   }
 
   @Override
   public boolean preWALWrite(ObserverContext<WALCoprocessorEnvironment> env,
-      HRegionInfo info, HLogKey logKey, WALEdit logEdit) throws IOException {
+      HRegionInfo info, WALKey logKey, WALEdit logEdit) throws IOException {
     boolean bypass = false;
     // check table name matches or not.
     if (!Bytes.equals(info.getTableName(), this.tableName)) {
@@ -128,7 +128,7 @@ implements WALObserver {
    */
   @Override
   public void preWALRestore(ObserverContext<RegionCoprocessorEnvironment> env,
-      HRegionInfo info, HLogKey logKey, WALEdit logEdit) throws IOException {
+      HRegionInfo info, WALKey logKey, WALEdit logEdit) throws IOException {
     preWALRestoreCalled = true;
   }
 
@@ -138,7 +138,7 @@ implements WALObserver {
    */
   @Override
   public void postWALRestore(ObserverContext<RegionCoprocessorEnvironment> env,
-      HRegionInfo info, HLogKey logKey, WALEdit logEdit) throws IOException {
+      HRegionInfo info, WALKey logKey, WALEdit logEdit) throws IOException {
     postWALRestoreCalled = true;
   }
 

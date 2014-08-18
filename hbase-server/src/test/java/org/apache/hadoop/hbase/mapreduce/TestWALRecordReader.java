@@ -38,12 +38,11 @@ import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.mapreduce.HLogInputFormat.HLogRecordReader;
-import org.apache.hadoop.hbase.regionserver.wal.AbstractWAL;
-import org.apache.hadoop.hbase.regionserver.wal.WALService;
-import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
-import org.apache.hadoop.hbase.regionserver.wal.HLogUtilsForTests;
+import org.apache.hadoop.hbase.mapreduce.WALInputFormat.WALRecordReader;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
+import org.apache.hadoop.hbase.regionserver.wal.WALFactory;
+import org.apache.hadoop.hbase.regionserver.wal.WALKey;
 import org.apache.hadoop.hbase.testclassification.MapReduceTests;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -56,10 +55,10 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 /**
- * JUnit tests for the HLogRecordReader
+ * JUnit tests for the WALRecordReader
  */
 @Category({MapReduceTests.class, MediumTests.class})
-public class TestHLogRecordReader {
+public class TestWALRecordReader {
   private final Log LOG = LogFactory.getLog(getClass());
   private final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
   private static Configuration conf;
@@ -74,10 +73,9 @@ public class TestHLogRecordReader {
   private static final byte [] value = Bytes.toBytes("value");
   private static HTableDescriptor htd;
   private static Path logDir;
-  private static String logName;
 
   private static String getName() {
-    return "TestHLogRecordReader";
+    return "TestWALRecordReader";
   }
 
   @Before
@@ -101,8 +99,7 @@ public class TestHLogRecordReader {
 
     hbaseDir = TEST_UTIL.createRootDir();
     
-    logName = HConstants.HREGION_LOGDIR_NAME;
-    logDir = new Path(hbaseDir, logName);
+    logDir = new Path(hbaseDir, HConstants.HREGION_LOGDIR_NAME);
 
     htd = new HTableDescriptor(tableName);
     htd.addFamily(new HColumnDescriptor(family));
@@ -119,38 +116,46 @@ public class TestHLogRecordReader {
    */
   @Test
   public void testPartialRead() throws Exception {
-    AbstractWAL log = (AbstractWAL)HLogFactory.createHLog(fs, hbaseDir, logName, conf);
+    final WALFactory walfactory = new WALFactory(conf, null, getName());
+    WAL log = walfactory.getWAL(info.getEncodedNameAsBytes());
     // This test depends on timestamp being millisecond based and the filename of the WAL also
     // being millisecond based.
     long ts = System.currentTimeMillis();
     WALEdit edit = new WALEdit();
     final AtomicLong sequenceId = new AtomicLong(0);
     edit.add(new KeyValue(rowName, family, Bytes.toBytes("1"), ts, value));
-    log.append(info, tableName, edit, ts, htd, sequenceId);
+    log.append(htd, info, new WALKey(info.getEncodedNameAsBytes(), tableName, ts), edit, sequenceId,
+        true, null);
     edit = new WALEdit();
     edit.add(new KeyValue(rowName, family, Bytes.toBytes("2"), ts+1, value));
-    log.append(info, tableName, edit, ts+1, htd, sequenceId);
-    LOG.info("Before 1st WAL roll " + HLogUtilsForTests.extractFileNumFromPath(log.getCurrentFileName()));
+    log.append(htd, info, new WALKey(info.getEncodedNameAsBytes(), tableName, ts+1), edit, sequenceId,
+        true, null);
+    log.sync();
+    LOG.info("Before 1st WAL roll " + log.toString());
     log.rollWriter();
-    LOG.info("Past 1st WAL roll " + HLogUtilsForTests.extractFileNumFromPath(log.getCurrentFileName()));
+    LOG.info("Past 1st WAL roll " + log.toString());
 
     Thread.sleep(1);
     long ts1 = System.currentTimeMillis();
 
     edit = new WALEdit();
     edit.add(new KeyValue(rowName, family, Bytes.toBytes("3"), ts1+1, value));
-    log.append(info, tableName, edit, ts1+1, htd, sequenceId);
+    log.append(htd, info, new WALKey(info.getEncodedNameAsBytes(), tableName, ts1+1), edit, sequenceId,
+        true, null);
     edit = new WALEdit();
     edit.add(new KeyValue(rowName, family, Bytes.toBytes("4"), ts1+2, value));
-    log.append(info, tableName, edit, ts1+2, htd, sequenceId);
+    log.append(htd, info, new WALKey(info.getEncodedNameAsBytes(), tableName, ts1+2), edit, sequenceId,
+        true, null);
+    log.sync();
     log.close();
-    LOG.info("Closed WAL " + HLogUtilsForTests.extractFileNumFromPath(log.getCurrentFileName()));
+    walfactory.close();
+    LOG.info("Closed WAL " + log.toString());
 
  
-    HLogInputFormat input = new HLogInputFormat();
+    WALInputFormat input = new WALInputFormat();
     Configuration jobConf = new Configuration(conf);
     jobConf.set("mapreduce.input.fileinputformat.inputdir", logDir.toString());
-    jobConf.setLong(HLogInputFormat.END_TIME_KEY, ts);
+    jobConf.setLong(WALInputFormat.END_TIME_KEY, ts);
 
     // only 1st file is considered, and only its 1st entry is used
     List<InputSplit> splits = input.getSplits(MapreduceTestingShim.createJobContext(jobConf));
@@ -158,8 +163,8 @@ public class TestHLogRecordReader {
     assertEquals(1, splits.size());
     testSplit(splits.get(0), Bytes.toBytes("1"));
 
-    jobConf.setLong(HLogInputFormat.START_TIME_KEY, ts+1);
-    jobConf.setLong(HLogInputFormat.END_TIME_KEY, ts1+1);
+    jobConf.setLong(WALInputFormat.START_TIME_KEY, ts+1);
+    jobConf.setLong(WALInputFormat.END_TIME_KEY, ts1+1);
     splits = input.getSplits(MapreduceTestingShim.createJobContext(jobConf));
     // both files need to be considered
     assertEquals(2, splits.size());
@@ -174,15 +179,17 @@ public class TestHLogRecordReader {
    * @throws Exception
    */
   @Test
-  public void testHLogRecordReader() throws Exception {
-    WALService log = HLogFactory.createHLog(fs, hbaseDir, logName, conf);
+  public void testWALRecordReader() throws Exception {
+    final WALFactory walfactory = new WALFactory(conf, null, getName());
+    WAL log = walfactory.getWAL(info.getEncodedNameAsBytes());
     byte [] value = Bytes.toBytes("value");
     final AtomicLong sequenceId = new AtomicLong(0);
     WALEdit edit = new WALEdit();
     edit.add(new KeyValue(rowName, family, Bytes.toBytes("1"),
         System.currentTimeMillis(), value));
-    log.append(info, tableName, edit,
-      System.currentTimeMillis(), htd, sequenceId);
+    long txid = log.append(htd, info, new WALKey(info.getEncodedNameAsBytes(), tableName,
+        System.currentTimeMillis()), edit, sequenceId, true, null);
+    log.sync(txid);
 
     Thread.sleep(1); // make sure 2nd log gets a later timestamp
     long secondTs = System.currentTimeMillis();
@@ -191,13 +198,15 @@ public class TestHLogRecordReader {
     edit = new WALEdit();
     edit.add(new KeyValue(rowName, family, Bytes.toBytes("2"),
         System.currentTimeMillis(), value));
-    log.append(info, tableName, edit,
-      System.currentTimeMillis(), htd, sequenceId);
+    txid = log.append(htd, info, new WALKey(info.getEncodedNameAsBytes(), tableName,
+        System.currentTimeMillis()), edit, sequenceId, true, null);
+    log.sync(txid);
     log.close();
+    walfactory.close();
     long thirdTs = System.currentTimeMillis();
 
     // should have 2 log files now
-    HLogInputFormat input = new HLogInputFormat();
+    WALInputFormat input = new WALInputFormat();
     Configuration jobConf = new Configuration(conf);
     jobConf.set("mapreduce.input.fileinputformat.inputdir", logDir.toString());
 
@@ -213,14 +222,14 @@ public class TestHLogRecordReader {
     // now test basic time ranges:
 
     // set an endtime, the 2nd log file can be ignored completely.
-    jobConf.setLong(HLogInputFormat.END_TIME_KEY, secondTs-1);
+    jobConf.setLong(WALInputFormat.END_TIME_KEY, secondTs-1);
     splits = input.getSplits(MapreduceTestingShim.createJobContext(jobConf));
     assertEquals(1, splits.size());
     testSplit(splits.get(0), Bytes.toBytes("1"));
 
     // now set a start time
-    jobConf.setLong(HLogInputFormat.END_TIME_KEY, Long.MAX_VALUE);
-    jobConf.setLong(HLogInputFormat.START_TIME_KEY, thirdTs);
+    jobConf.setLong(WALInputFormat.END_TIME_KEY, Long.MAX_VALUE);
+    jobConf.setLong(WALInputFormat.START_TIME_KEY, thirdTs);
     splits = input.getSplits(MapreduceTestingShim.createJobContext(jobConf));
     // both logs need to be considered
     assertEquals(2, splits.size());
@@ -233,7 +242,7 @@ public class TestHLogRecordReader {
    * Create a new reader from the split, and match the edits against the passed columns.
    */
   private void testSplit(InputSplit split, byte[]... columns) throws Exception {
-    HLogRecordReader reader = new HLogRecordReader();
+    WALRecordReader reader = new WALRecordReader();
     reader.initialize(split, MapReduceTestUtil.createDummyMapTaskAttemptContext(conf));
 
     for (byte[] column : columns) {

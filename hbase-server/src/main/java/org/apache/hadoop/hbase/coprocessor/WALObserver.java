@@ -24,7 +24,7 @@ import org.apache.hadoop.hbase.classification.InterfaceStability;
 import org.apache.hadoop.hbase.Coprocessor;
 import org.apache.hadoop.hbase.HBaseInterfaceAudience;
 import org.apache.hadoop.hbase.HRegionInfo;
-import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
+import org.apache.hadoop.hbase.regionserver.wal.WALKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import java.io.IOException;
  * hooks for adding logic for WALEdits in the region context during reconstruction,
  *
  * Defines coprocessor hooks for interacting with operations on the
- * {@link org.apache.hadoop.hbase.regionserver.wal.WALService}.
+ * {@link org.apache.hadoop.hbase.regionserver.wal.WAL}.
  */
 @InterfaceAudience.LimitedPrivate(HBaseInterfaceAudience.COPROC)
 @InterfaceStability.Evolving
@@ -59,7 +59,7 @@ public interface WALObserver extends Coprocessor {
    */
   // TODO: return value is not used
   boolean preWALWrite(ObserverContext<WALCoprocessorEnvironment> ctx,
-      HRegionInfo info, HLogKey logKey, WALEdit logEdit) throws IOException;
+      HRegionInfo info, WALKey logKey, WALEdit logEdit) throws IOException;
 
   /**
    * Called after a {@link org.apache.hadoop.hbase.regionserver.wal.WALEdit}
@@ -72,5 +72,5 @@ public interface WALObserver extends Coprocessor {
    * @throws IOException
    */
   void postWALWrite(ObserverContext<WALCoprocessorEnvironment> ctx,
-      HRegionInfo info, HLogKey logKey, WALEdit logEdit) throws IOException;
+      HRegionInfo info, WALKey logKey, WALEdit logEdit) throws IOException;
 }

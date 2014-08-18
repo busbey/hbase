@@ -31,7 +31,7 @@ import org.apache.hadoop.hbase.Waiter;
 import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.regionserver.wal.FailedLogCloseException;
-import org.apache.hadoop.hbase.regionserver.wal.WAL.Entry;
+import org.apache.hadoop.hbase.regionserver.wal.WALProvider.Entry;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.testclassification.ReplicationTests;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -74,7 +74,7 @@ public class TestReplicationEndpoint extends TestReplicationBase {
     ReplicationEndpointForTest.replicateCount.set(0);
     ReplicationEndpointForTest.lastEntries = null;
     for (RegionServerThread rs : utility1.getMiniHBaseCluster().getRegionServerThreads()) {
-      utility1.getHBaseAdmin().rollHLogWriter(rs.getRegionServer().getServerName().toString());
+      utility1.getHBaseAdmin().rollWALWriter(rs.getRegionServer().getServerName().toString());
     }
   }
 

@@ -61,7 +61,7 @@ public class TestReadOldRootAndMetaEdits {
   @BeforeClass
   public static void setupBeforeClass() throws Exception {
     TEST_UTIL.getConfiguration().setClass("hbase.regionserver.hlog.writer.impl",
-      SequenceFileLogWriter.class, WAL.Writer.class);
+      SequenceFileLogWriter.class, WALProvider.Writer.class);
     fs = TEST_UTIL.getTestFileSystem();
     dir = new Path(TEST_UTIL.createRootDir(), "testReadOldRootAndMetaEdits");
     fs.mkdirs(dir);
@@ -82,15 +82,15 @@ public class TestReadOldRootAndMetaEdits {
     LOG.debug("testReadOldRootAndMetaEdits");
     Configuration conf = HBaseConfiguration.create();
     conf.setClass("hbase.regionserver.hlog.writer.impl", SequenceFileLogWriter.class,
-      WAL.Writer.class);
+      WALProvider.Writer.class);
     // kv list to be used for all WALEdits.
     byte[] row = Bytes.toBytes("row");
     KeyValue kv = new KeyValue(row, row, row, row);
     List<KeyValue> kvs = new ArrayList<KeyValue>();
     kvs.add(kv);
 
-    WAL.Writer writer = null;
-    WAL.Reader reader = null;
+    WALProvider.Writer writer = null;
+    WALProvider.Reader reader = null;
     // a regular table
     TableName t = TableName.valueOf("t");
     HRegionInfo tRegionInfo = null;
@@ -99,21 +99,21 @@ public class TestReadOldRootAndMetaEdits {
     Path path = new Path(dir, "t");
     try {
       tRegionInfo = new HRegionInfo(t, HConstants.EMPTY_START_ROW, HConstants.EMPTY_END_ROW);
-      WAL.Entry tEntry = createAEntry(new HLogKey(tRegionInfo.getEncodedNameAsBytes(), t,
+      WALProvider.Entry tEntry = createAEntry(new WALKey(tRegionInfo.getEncodedNameAsBytes(), t,
           ++logCount, timestamp, HConstants.DEFAULT_CLUSTER_ID), kvs);
 
       // create a old root edit (-ROOT-).
-      WAL.Entry rootEntry = createAEntry(new HLogKey(Bytes.toBytes(TableName.OLD_ROOT_STR),
+      WALProvider.Entry rootEntry = createAEntry(new WALKey(Bytes.toBytes(TableName.OLD_ROOT_STR),
           TableName.OLD_ROOT_TABLE_NAME, ++logCount, timestamp,
           HConstants.DEFAULT_CLUSTER_ID), kvs);
 
       // create a old meta edit (hbase:meta).
-      WAL.Entry oldMetaEntry = createAEntry(new HLogKey(Bytes.toBytes(TableName.OLD_META_STR),
+      WALProvider.Entry oldMetaEntry = createAEntry(new WALKey(Bytes.toBytes(TableName.OLD_META_STR),
           TableName.OLD_META_TABLE_NAME, ++logCount, timestamp,
           HConstants.DEFAULT_CLUSTER_ID), kvs);
 
       // write above entries
-      writer = HLogFactory.createWALWriter(fs, path, conf);
+      writer = WALFactory.createWALWriter(fs, path, conf);
       writer.append(tEntry);
       writer.append(rootEntry);
       writer.append(oldMetaEntry);
@@ -123,8 +123,8 @@ public class TestReadOldRootAndMetaEdits {
       writer.close();
 
       // read the log and see things are okay.
-      reader = HLogFactory.createReader(fs, path, conf);
-      WAL.Entry entry = reader.next();
+      reader = WALFactory.createReader(fs, path, conf);
+      WALProvider.Entry entry = reader.next();
       assertNotNull(entry);
       assertTrue(entry.getKey().getTablename().equals(t));
       assertEquals(Bytes.toString(entry.getKey().getEncodedRegionName()),
@@ -145,15 +145,15 @@ public class TestReadOldRootAndMetaEdits {
     }
 }
   /**
-   * Creates a WALEdit for the passed KeyValues and returns a HLog.Entry instance composed of
-   * the WALEdit and passed HLogKey.
-   * @return HLog.Entry instance for the passed HLogKey and KeyValues
+   * Creates a WALEdit for the passed KeyValues and returns a WALProvider.Entry instance composed of
+   * the WALEdit and passed WALKey.
+   * @return WALProvider.Entry instance for the passed WALKey and KeyValues
    */
-  private WAL.Entry createAEntry(HLogKey hlogKey, List<KeyValue> kvs) {
+  private WALProvider.Entry createAEntry(WALKey walKey, List<KeyValue> kvs) {
     WALEdit edit = new WALEdit();
     for (KeyValue kv : kvs )
     edit.add(kv);
-    return new WAL.Entry(hlogKey, edit);
+    return new WALProvider.Entry(walKey, edit);
   }
 
 }

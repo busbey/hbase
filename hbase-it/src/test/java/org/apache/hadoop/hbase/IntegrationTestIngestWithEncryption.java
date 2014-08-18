@@ -26,7 +26,7 @@ import org.apache.hadoop.hbase.io.crypto.KeyProviderForTesting;
 import org.apache.hadoop.hbase.io.hfile.HFile;
 import org.apache.hadoop.hbase.io.hfile.HFileReaderV3;
 import org.apache.hadoop.hbase.io.hfile.HFileWriterV3;
-import org.apache.hadoop.hbase.regionserver.wal.WAL;
+import org.apache.hadoop.hbase.regionserver.wal.WALProvider;
 import org.apache.hadoop.hbase.regionserver.wal.SecureProtobufLogReader;
 import org.apache.hadoop.hbase.regionserver.wal.SecureProtobufLogWriter;
 import org.apache.hadoop.hbase.testclassification.IntegrationTests;
@@ -61,9 +61,9 @@ public class IntegrationTestIngestWithEncryption extends IntegrationTestIngest {
       conf.set(HConstants.CRYPTO_KEYPROVIDER_CONF_KEY, KeyProviderForTesting.class.getName());
       conf.set(HConstants.CRYPTO_MASTERKEY_NAME_CONF_KEY, "hbase");
       conf.setClass("hbase.regionserver.hlog.reader.impl", SecureProtobufLogReader.class,
-        WAL.Reader.class);
+        WALProvider.Reader.class);
       conf.setClass("hbase.regionserver.hlog.writer.impl", SecureProtobufLogWriter.class,
-        WAL.Writer.class);
+        WALProvider.Writer.class);
       conf.setBoolean(HConstants.ENABLE_WAL_ENCRYPTION, true);
     }
     super.setUpCluster();

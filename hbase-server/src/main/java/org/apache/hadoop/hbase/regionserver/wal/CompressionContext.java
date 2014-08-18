@@ -26,7 +26,7 @@ import org.apache.hadoop.hbase.io.TagCompressionContext;
 import org.apache.hadoop.hbase.io.util.Dictionary;
 
 /**
- * Context that holds the various dictionaries for compression in HLog.
+ * Context that holds the various dictionaries for compression in WAL.
  */
 @InterfaceAudience.Private
 class CompressionContext {

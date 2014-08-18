@@ -44,9 +44,9 @@ import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
-import org.apache.hadoop.hbase.mapreduce.WALPlayer.HLogKeyValueMapper;
-import org.apache.hadoop.hbase.regionserver.wal.WALService;
-import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
+import org.apache.hadoop.hbase.mapreduce.WALPlayer.WALKeyValueMapper;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
+import org.apache.hadoop.hbase.regionserver.wal.WALKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.testclassification.MapReduceTests;
@@ -107,7 +107,7 @@ public class TestWALPlayer {
     t1.delete(d);
 
     // replay the WAL, map table 1 to table 2
-    WALService log = cluster.getRegionServer(0).getWAL();
+    WAL log = cluster.getRegionServer(0).getWAL();
     log.rollWriter();
     String walInputDir = new Path(cluster.getMaster().getMasterFileSystem()
         .getRootDir(), HConstants.HREGION_LOGDIR_NAME).toString();
@@ -130,17 +130,17 @@ public class TestWALPlayer {
   }
 
   /**
-   * Test HLogKeyValueMapper setup and map
+   * Test WALKeyValueMapper setup and map
    */
   @Test
-  public void testHLogKeyValueMapper() throws Exception {
+  public void testWALKeyValueMapper() throws Exception {
     Configuration configuration = new Configuration();
     configuration.set(WALPlayer.TABLES_KEY, "table");
-    HLogKeyValueMapper mapper = new HLogKeyValueMapper();
-    HLogKey key = mock(HLogKey.class);
+    WALKeyValueMapper mapper = new WALKeyValueMapper();
+    WALKey key = mock(WALKey.class);
     when(key.getTablename()).thenReturn(TableName.valueOf("table"));
     @SuppressWarnings("unchecked")
-    Mapper<HLogKey, WALEdit, ImmutableBytesWritable, KeyValue>.Context context =
+    Mapper<WALKey, WALEdit, ImmutableBytesWritable, KeyValue>.Context context =
         mock(Context.class);
     when(context.getConfiguration()).thenReturn(configuration);
 

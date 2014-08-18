@@ -21,7 +21,7 @@ package org.apache.hadoop.hbase.regionserver.wal;
 import org.apache.hadoop.hbase.CompatibilitySingletonFactory;
 import org.junit.Test;
 
-public class TestMetricsHLogSource {
+public class TestMetricsWALSource {
 
   @Test(expected=RuntimeException.class)
   public void testGetInstanceNoHadoopCompat() throws Exception {

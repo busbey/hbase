@@ -65,7 +65,7 @@ import org.apache.hadoop.hbase.regionserver.ScanType;
 import org.apache.hadoop.hbase.regionserver.Store;
 import org.apache.hadoop.hbase.regionserver.StoreFile;
 import org.apache.hadoop.hbase.regionserver.StoreFile.Reader;
-import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
+import org.apache.hadoop.hbase.regionserver.wal.WALKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
@@ -662,7 +662,7 @@ public class SimpleRegionObserver extends BaseRegionObserver {
 
   @Override
   public void preWALRestore(ObserverContext<RegionCoprocessorEnvironment> env, HRegionInfo info,
-                            HLogKey logKey, WALEdit logEdit) throws IOException {
+                            WALKey logKey, WALEdit logEdit) throws IOException {
     String tableName = logKey.getTablename().getNameAsString();
     if (tableName.equals(TABLE_SKIPPED)) {
       // skip recovery of TABLE_SKIPPED for testing purpose
@@ -674,7 +674,7 @@ public class SimpleRegionObserver extends BaseRegionObserver {
 
   @Override
   public void postWALRestore(ObserverContext<RegionCoprocessorEnvironment> env,
-                             HRegionInfo info, HLogKey logKey, WALEdit logEdit) throws IOException {
+                             HRegionInfo info, WALKey logKey, WALEdit logEdit) throws IOException {
     ctPostWALRestore.incrementAndGet();
   }
 

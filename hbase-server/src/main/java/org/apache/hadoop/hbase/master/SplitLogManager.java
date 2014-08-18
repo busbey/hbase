@@ -59,7 +59,7 @@ import org.apache.hadoop.hbase.monitoring.MonitoredTask;
 import org.apache.hadoop.hbase.monitoring.TaskMonitor;
 import org.apache.hadoop.hbase.protobuf.generated.ZooKeeperProtos.SplitLogTask.RecoveryMode;
 import org.apache.hadoop.hbase.regionserver.SplitLogWorker;
-import org.apache.hadoop.hbase.regionserver.wal.HLogUtil;
+import org.apache.hadoop.hbase.regionserver.wal.DefaultWALProvider;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.hbase.util.Pair;
@@ -162,15 +162,15 @@ public class SplitLogManager {
 
   private FileStatus[] getFileList(List<Path> logDirs, PathFilter filter) throws IOException {
     List<FileStatus> fileStatus = new ArrayList<FileStatus>();
-    for (Path hLogDir : logDirs) {
-      this.fs = hLogDir.getFileSystem(conf);
-      if (!fs.exists(hLogDir)) {
-        LOG.warn(hLogDir + " doesn't exist. Nothing to do!");
+    for (Path logDir : logDirs) {
+      this.fs = logDir.getFileSystem(conf);
+      if (!fs.exists(logDir)) {
+        LOG.warn(logDir + " doesn't exist. Nothing to do!");
         continue;
       }
-      FileStatus[] logfiles = FSUtils.listStatus(fs, hLogDir, filter);
+      FileStatus[] logfiles = FSUtils.listStatus(fs, logDir, filter);
       if (logfiles == null || logfiles.length == 0) {
-        LOG.info(hLogDir + " is empty dir, no logs to split");
+        LOG.info(logDir + " is empty dir, no logs to split");
       } else {
         Collections.addAll(fileStatus, logfiles);
       }
@@ -180,7 +180,7 @@ public class SplitLogManager {
   }
 
   /**
-   * @param logDir one region sever hlog dir path in .logs
+   * @param logDir one region sever wal dir path in .logs
    * @throws IOException if there was an error while splitting any log file
    * @return cumulative size of the logfiles split
    * @throws IOException
@@ -206,7 +206,7 @@ public class SplitLogManager {
     Set<ServerName> serverNames = new HashSet<ServerName>();
     for (Path logDir : logDirs) {
       try {
-        ServerName serverName = HLogUtil.getServerNameFromHLogDirectoryName(logDir);
+        ServerName serverName = DefaultWALProvider.getServerNameFromWALDirectoryName(logDir);
         if (serverName != null) {
           serverNames.add(serverName);
         }

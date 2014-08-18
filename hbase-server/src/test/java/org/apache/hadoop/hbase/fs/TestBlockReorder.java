@@ -42,7 +42,7 @@ import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.regionserver.HRegionServer;
-import org.apache.hadoop.hbase.regionserver.wal.HLogUtil;
+import org.apache.hadoop.hbase.regionserver.wal.DefaultWALProvider;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.testclassification.MiscTests;
 import org.apache.hadoop.hbase.util.FSUtils;
@@ -278,7 +278,7 @@ public class TestBlockReorder {
 
     int nbTest = 0;
     while (nbTest < 10) {
-      htu.getHBaseAdmin().rollHLogWriter(targetRs.getServerName().toString());
+      htu.getHBaseAdmin().rollWALWriter(targetRs.getServerName().toString());
 
       // We need a sleep as the namenode is informed asynchronously
       Thread.sleep(100);
@@ -414,7 +414,7 @@ public class TestBlockReorder {
 
       // Check that it will be possible to extract a ServerName from our construction
       Assert.assertNotNull("log= " + pseudoLogFile,
-          HLogUtil.getServerNameFromHLogDirectoryName(dfs.getConf(), pseudoLogFile));
+          DefaultWALProvider.getServerNameFromWALDirectoryName(dfs.getConf(), pseudoLogFile));
 
       // And check we're doing the right reorder.
       lrb.reorderBlocks(conf, l, pseudoLogFile);

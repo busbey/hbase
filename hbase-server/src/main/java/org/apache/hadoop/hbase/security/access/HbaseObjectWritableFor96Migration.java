@@ -86,8 +86,8 @@ import org.apache.hadoop.hbase.io.WritableWithSize;
 import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.protobuf.generated.ClientProtos;
 import org.apache.hadoop.hbase.regionserver.RegionOpeningState;
-import org.apache.hadoop.hbase.regionserver.wal.WAL;
-import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
+import org.apache.hadoop.hbase.regionserver.wal.WALProvider.Entry;
+import org.apache.hadoop.hbase.regionserver.wal.WALKey;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ProtoUtil;
 import org.apache.hadoop.io.DataOutputOutputStream;
@@ -229,9 +229,9 @@ class HbaseObjectWritableFor96Migration implements Writable, WritableWithSize, C
 
     addToMap(Delete [].class, code++);
 
-    addToMap(WAL.Entry.class, code++);
-    addToMap(WAL.Entry[].class, code++);
-    addToMap(HLogKey.class, code++);
+    addToMap(Entry.class, code++);
+    addToMap(Entry[].class, code++);
+    addToMap(WALKey.class, code++);
 
     addToMap(List.class, code++);
 
