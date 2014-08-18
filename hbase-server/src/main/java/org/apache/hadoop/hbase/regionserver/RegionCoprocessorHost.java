@@ -76,7 +76,7 @@ import org.apache.hadoop.hbase.io.Reference;
 import org.apache.hadoop.hbase.io.hfile.CacheConfig;
 import org.apache.hadoop.hbase.regionserver.HRegion.Operation;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionRequest;
-import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
+import org.apache.hadoop.hbase.regionserver.wal.WALKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
@@ -1306,7 +1306,7 @@ public class RegionCoprocessorHost
    * @return true if default behavior should be bypassed, false otherwise
    * @throws IOException
    */
-  public boolean preWALRestore(final HRegionInfo info, final HLogKey logKey,
+  public boolean preWALRestore(final HRegionInfo info, final WALKey logKey,
       final WALEdit logEdit) throws IOException {
     return execOperation(coprocessors.isEmpty() ? null : new RegionOperation() {
       @Override
@@ -1323,7 +1323,7 @@ public class RegionCoprocessorHost
    * @param logEdit
    * @throws IOException
    */
-  public void postWALRestore(final HRegionInfo info, final HLogKey logKey, final WALEdit logEdit)
+  public void postWALRestore(final HRegionInfo info, final WALKey logKey, final WALEdit logEdit)
       throws IOException {
     execOperation(coprocessors.isEmpty() ? null : new RegionOperation() {
       @Override

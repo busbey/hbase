@@ -891,7 +891,7 @@ public interface Admin extends Abortable, Closeable {
    * @throws IOException if a remote or network exception occurs
    * @throws org.apache.hadoop.hbase.regionserver.wal.FailedLogCloseException
    */
-  byte[][] rollHLogWriter(String serverName) throws IOException, FailedLogCloseException;
+  byte[][] rollWALWriter(String serverName) throws IOException, FailedLogCloseException;
 
   /**
    * Helper delegage to getClusterStatus().getMasterCoprocessors().

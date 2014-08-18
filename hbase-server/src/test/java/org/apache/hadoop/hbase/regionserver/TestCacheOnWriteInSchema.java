@@ -51,8 +51,8 @@ import org.apache.hadoop.hbase.io.hfile.HFileBlock;
 import org.apache.hadoop.hbase.io.hfile.HFileReaderV2;
 import org.apache.hadoop.hbase.io.hfile.HFileScanner;
 import org.apache.hadoop.hbase.io.hfile.TestHFileWriterV2;
-import org.apache.hadoop.hbase.regionserver.wal.WALService;
-import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
+import org.apache.hadoop.hbase.regionserver.wal.WALFactory;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.After;
 import org.junit.Before;
@@ -126,7 +126,7 @@ public class TestCacheOnWriteInSchema {
   private final String testDescription;
   private HRegion region;
   private HStore store;
-  private WALService hlog;
+  private WAL wal;
   private FileSystem fs;
 
   public TestCacheOnWriteInSchema(CacheOnWriteType cowType) {
@@ -171,9 +171,9 @@ public class TestCacheOnWriteInSchema {
     fs.delete(logdir, true);
 
     HRegionInfo info = new HRegionInfo(htd.getTableName(), null, null, false);
-    hlog = HLogFactory.createHLog(fs, basedir, logName, conf);
+    wal = WALFactory.createWAL(fs, basedir, logName, conf);
 
-    region = TEST_UTIL.createLocalHRegion(info, htd, hlog);
+    region = TEST_UTIL.createLocalHRegion(info, htd, wal);
     store = new HStore(region, hcd, conf);
   }
 
@@ -187,7 +187,7 @@ public class TestCacheOnWriteInSchema {
       ex = e;
     }
     try {
-      hlog.closeAndDelete();
+      wal.closeAndDelete();
     } catch (IOException e) {
       LOG.warn("Caught Exception", e);
       ex = e;

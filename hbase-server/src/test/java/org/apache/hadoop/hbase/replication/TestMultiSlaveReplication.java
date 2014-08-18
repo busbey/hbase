@@ -145,7 +145,7 @@ public class TestMultiSlaveReplication {
     putAndWait(row2, famName, htable1, htable2);
 
     // now roll the region server's logs
-    new HBaseAdmin(conf1).rollHLogWriter(master.getRegionServer(0).getServerName().toString());
+    new HBaseAdmin(conf1).rollWALWriter(master.getRegionServer(0).getServerName().toString());
     // after the log was rolled put a new row
     putAndWait(row3, famName, htable1, htable2);
 
@@ -168,7 +168,7 @@ public class TestMultiSlaveReplication {
     p.add(famName, row, row);
     htable1.put(p);
     // now roll the logs again
-    new HBaseAdmin(conf1).rollHLogWriter(master.getRegionServer(0)
+    new HBaseAdmin(conf1).rollWALWriter(master.getRegionServer(0)
         .getServerName().toString());
 
     // cleanup "row2", also conveniently use this to wait replication

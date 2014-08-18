@@ -66,7 +66,7 @@ public class ProtobufLogReader extends ReaderBase {
   protected boolean hasCompression = false;
   protected boolean hasTagCompression = false;
   // walEditsStopOffset is the position of the last byte to read. After reading the last WALEdit entry
-  // in the hlog, the inputstream's position is equal to walEditsStopOffset.
+  // in the wal, the inputstream's position is equal to walEditsStopOffset.
   private long walEditsStopOffset;
   private boolean trailerPresent;
   private static List<String> writerClsNames = new ArrayList<String>();
@@ -268,7 +268,7 @@ public class ProtobufLogReader extends ReaderBase {
   }
 
   @Override
-  protected boolean readNext(WAL.Entry entry) throws IOException {
+  protected boolean readNext(WALProvider.Entry entry) throws IOException {
     while (true) {
       // OriginalPosition might be < 0 on local fs; if so, it is useless to us.
       long originalPosition = this.inputStream.getPos();
@@ -332,7 +332,7 @@ public class ProtobufLogReader extends ReaderBase {
               initCause(realEofEx != null ? realEofEx : ex);
         }
         if (trailerPresent && this.inputStream.getPos() > this.walEditsStopOffset) {
-          LOG.error("Read WALTrailer while reading WALEdits. hlog: " + this.path
+          LOG.error("Read WALTrailer while reading WALEdits. wal: " + this.path
               + ", inputStream.getPos(): " + this.inputStream.getPos() + ", walEditsStopOffset: "
               + this.walEditsStopOffset);
           throw new EOFException("Read WALTrailer while reading WALEdits");

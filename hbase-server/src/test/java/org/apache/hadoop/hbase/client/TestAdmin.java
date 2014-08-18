@@ -60,7 +60,7 @@ import org.apache.hadoop.hbase.master.HMaster;
 import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.regionserver.HRegionServer;
-import org.apache.hadoop.hbase.regionserver.wal.HLogUtilsForTests;
+import org.apache.hadoop.hbase.regionserver.wal.WALUtilsForTests;
 import org.apache.hadoop.hbase.testclassification.ClientTests;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -1545,7 +1545,7 @@ public class TestAdmin {
  }
 
   @Test (timeout=300000)
-  public void testHLogRollWriting() throws Exception {
+  public void testWALRollWriting() throws Exception {
     setUpforLogRolling();
     String className = this.getClass().getName();
     StringBuilder v = new StringBuilder(className);
@@ -1555,7 +1555,7 @@ public class TestAdmin {
     byte[] value = Bytes.toBytes(v.toString());
     HRegionServer regionServer = startAndWriteData(TableName.valueOf("TestLogRolling"), value);
     LOG.info("after writing there are "
-        + HLogUtilsForTests.getNumRolledLogFiles(regionServer.getWAL()) + " log files");
+        + WALUtilsForTests.getNumRolledLogFiles(regionServer.getWAL()) + " log files");
 
     // flush all regions
 
@@ -1564,8 +1564,8 @@ public class TestAdmin {
     for (HRegion r : regions) {
       r.flushcache();
     }
-    admin.rollHLogWriter(regionServer.getServerName().getServerName());
-    int count = HLogUtilsForTests.getNumRolledLogFiles(regionServer.getWAL());
+    admin.rollWALWriter(regionServer.getServerName().getServerName());
+    int count = WALUtilsForTests.getNumRolledLogFiles(regionServer.getWAL());
     LOG.info("after flushing all regions and rolling logs there are " +
         count + " log files");
     assertTrue(("actual count: " + count), count <= 2);

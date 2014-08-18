@@ -44,10 +44,10 @@ import org.apache.hadoop.hbase.regionserver.RegionServerServices;
 import org.apache.hadoop.hbase.regionserver.Store;
 import org.apache.hadoop.hbase.regionserver.StoreFile;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionContext;
-import org.apache.hadoop.hbase.regionserver.wal.HLogUtil;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
+import org.apache.hadoop.hbase.regionserver.wal.WALUtil;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.testclassification.MiscTests;
-import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.JVMClusterUtil.RegionServerThread;
 import org.apache.hadoop.hdfs.DFSClient;
@@ -87,7 +87,6 @@ public class TestIOFencing {
     ((Log4JLogger)LeaseManager.LOG).getLogger().setLevel(Level.ALL);
     ((Log4JLogger)LogFactory.getLog("org.apache.hadoop.hdfs.server.namenode.FSNamesystem")).getLogger().setLevel(Level.ALL);
     ((Log4JLogger)DFSClient.LOG).getLogger().setLevel(Level.ALL);
-    ((Log4JLogger)WALService.LOG).getLogger().setLevel(Level.ALL);
   }
 
   public abstract static class CompactionBlockerRegion extends HRegion {
@@ -96,7 +95,7 @@ public class TestIOFencing {
     volatile CountDownLatch compactionsWaiting = new CountDownLatch(0);
 
     @SuppressWarnings("deprecation")
-    public CompactionBlockerRegion(Path tableDir, WALService log,
+    public CompactionBlockerRegion(Path tableDir, WAL log,
         FileSystem fs, Configuration confParam, HRegionInfo info,
         HTableDescriptor htd, RegionServerServices rsServices) {
       super(tableDir, log, fs, confParam, info, htd, rsServices);
@@ -143,7 +142,7 @@ public class TestIOFencing {
    */
   public static class BlockCompactionsInPrepRegion extends CompactionBlockerRegion {
 
-    public BlockCompactionsInPrepRegion(Path tableDir, WALService log,
+    public BlockCompactionsInPrepRegion(Path tableDir, WAL log,
         FileSystem fs, Configuration confParam, HRegionInfo info,
         HTableDescriptor htd, RegionServerServices rsServices) {
       super(tableDir, log, fs, confParam, info, htd, rsServices);
@@ -166,7 +165,7 @@ public class TestIOFencing {
    * entry to go the WAL before blocking, but blocks afterwards
    */
   public static class BlockCompactionsInCompletionRegion extends CompactionBlockerRegion {
-    public BlockCompactionsInCompletionRegion(Path tableDir, WALService log,
+    public BlockCompactionsInCompletionRegion(Path tableDir, WAL log,
         FileSystem fs, Configuration confParam, HRegionInfo info,
         HTableDescriptor htd, RegionServerServices rsServices) {
       super(tableDir, log, fs, confParam, info, htd, rsServices);
@@ -282,7 +281,7 @@ public class TestIOFencing {
       CompactionDescriptor compactionDescriptor = ProtobufUtil.toCompactionDescriptor(oldHri,
         FAMILY, Lists.newArrayList(new Path("/a")), Lists.newArrayList(new Path("/b")),
         new Path("store_dir"));
-      HLogUtil.writeCompactionMarker(compactingRegion.getLog(), table.getTableDescriptor(),
+      WALUtil.writeCompactionMarker(compactingRegion.getLog(), table.getTableDescriptor(),
         oldHri, compactionDescriptor, new AtomicLong(Long.MAX_VALUE-100));
 
       // Wait till flush has happened, otherwise there won't be multiple store files

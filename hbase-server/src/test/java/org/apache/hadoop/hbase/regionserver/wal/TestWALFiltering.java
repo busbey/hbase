@@ -49,12 +49,12 @@ import com.google.common.collect.Lists;
 import com.google.protobuf.ServiceException;
 
 @Category({RegionServerTests.class, MediumTests.class})
-public class TestHLogFiltering {
+public class TestWALFiltering {
   private static final int NUM_MASTERS = 1;
   private static final int NUM_RS = 4;
 
   private static final TableName TABLE_NAME =
-      TableName.valueOf("TestHLogFiltering");
+      TableName.valueOf("TestWALFiltering");
   private static final byte[] CF1 = Bytes.toBytes("MyCF1");
   private static final byte[] CF2 = Bytes.toBytes("MyCF2");
   private static final byte[][] FAMILIES = { CF1, CF2 };

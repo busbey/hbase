@@ -45,8 +45,8 @@ import org.apache.hadoop.hbase.coprocessor.BaseRegionObserver;
 import org.apache.hadoop.hbase.coprocessor.CoprocessorHost;
 import org.apache.hadoop.hbase.coprocessor.ObserverContext;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
-import org.apache.hadoop.hbase.regionserver.wal.WALService;
-import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
+import org.apache.hadoop.hbase.regionserver.wal.WALFactory;
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -70,7 +70,7 @@ public class TestSplitTransaction {
   private final Path testdir =
     TEST_UTIL.getDataTestDir(this.getClass().getName());
   private HRegion parent;
-  private WALService wal;
+  private WAL wal;
   private FileSystem fs;
   private static final byte [] STARTROW = new byte [] {'a', 'a', 'a'};
   // '{' is next ascii after 'z'.
@@ -85,7 +85,7 @@ public class TestSplitTransaction {
     this.fs = FileSystem.get(TEST_UTIL.getConfiguration());
     TEST_UTIL.getConfiguration().set(CoprocessorHost.REGION_COPROCESSOR_CONF_KEY, CustomObserver.class.getName());
     this.fs.delete(this.testdir, true);
-    this.wal = HLogFactory.createHLog(fs, this.testdir, "logs",
+    this.wal = WALFactory.createWAL(fs, this.testdir, "logs",
       TEST_UTIL.getConfiguration());
     
     this.parent = createRegion(this.testdir, this.wal);
@@ -327,7 +327,7 @@ public class TestSplitTransaction {
     return rowcount;
   }
 
-  HRegion createRegion(final Path testdir, final WALService wal)
+  HRegion createRegion(final Path testdir, final WAL wal)
   throws IOException {
     // Make a region with start and end keys. Use 'aaa', to 'AAA'.  The load
     // region utility will add rows between 'aaa' and 'zzz'.

@@ -46,7 +46,6 @@ import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.protobuf.generated.HBaseProtos;
 import org.apache.hadoop.hbase.protobuf.generated.WALProtos.FamilyScope;
 import org.apache.hadoop.hbase.protobuf.generated.WALProtos.ScopeType;
-import org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey;
 import org.apache.hadoop.hbase.regionserver.SequenceId;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
@@ -67,16 +66,16 @@ import com.google.protobuf.ByteString;
  * associated row.
  */
 // TODO: Key and WALEdit are never used separately, or in one-to-many relation, for practical
-//       purposes. They need to be merged into HLogEntry.
+//       purposes. They need to be merged into WALEntry.
 @InterfaceAudience.LimitedPrivate(HBaseInterfaceAudience.REPLICATION)
-public class HLogKey implements WritableComparable<HLogKey>, SequenceId {
-  public static final Log LOG = LogFactory.getLog(HLogKey.class);
+public class WALKey implements WritableComparable<WALKey>, SequenceId {
+  public static final Log LOG = LogFactory.getLog(WALKey.class);
 
   // should be < 0 (@see #readFields(DataInput))
-  // version 2 supports HLog compression
+  // version 2 supports WAL compression
   enum Version {
     UNVERSIONED(0),
-    // Initial number we put on HLogKey when we introduced versioning.
+    // Initial number we put on WALKey when we introduced versioning.
     INITIAL(-1),
     // Version -2 introduced a dictionary compression facility.  Only this
     // dictionary-based compression is available in version -2.
@@ -115,6 +114,10 @@ public class HLogKey implements WritableComparable<HLogKey>, SequenceId {
 
   private static final Version VERSION = Version.COMPRESSED;
 
+  /** Used to represent when a particular wal key doesn't know/care about the sequence ordering. */
+  public static final long NO_SEQUENCE_ID = -1;
+
+
   //  The encoded region name.
   private byte [] encodedRegionName;
   private TableName tablename;
@@ -135,13 +138,13 @@ public class HLogKey implements WritableComparable<HLogKey>, SequenceId {
 
   private CompressionContext compressionContext;
 
-  public HLogKey() {
+  public WALKey() {
     init(null, null, 0L, HConstants.LATEST_TIMESTAMP,
         new ArrayList<UUID>(), HConstants.NO_NONCE, HConstants.NO_NONCE);
   }
 
   @VisibleForTesting
-  public HLogKey(final byte[] encodedRegionName, final TableName tablename, long logSeqNum,
+  public WALKey(final byte[] encodedRegionName, final TableName tablename, long logSeqNum,
       final long now, UUID clusterId) {
     List<UUID> clusterIds = new ArrayList<UUID>();
     clusterIds.add(clusterId);
@@ -149,12 +152,12 @@ public class HLogKey implements WritableComparable<HLogKey>, SequenceId {
         HConstants.NO_NONCE, HConstants.NO_NONCE);
   }
 
-  public HLogKey(final byte[] encodedRegionName, final TableName tablename) {
+  public WALKey(final byte[] encodedRegionName, final TableName tablename) {
     this(encodedRegionName, tablename, System.currentTimeMillis());
   }
 
-  public HLogKey(final byte[] encodedRegionName, final TableName tablename, final long now) {
-    init(encodedRegionName, tablename, WAL.NO_SEQUENCE_ID, now,
+  public WALKey(final byte[] encodedRegionName, final TableName tablename, final long now) {
+    init(encodedRegionName, tablename, NO_SEQUENCE_ID, now,
         EMPTY_UUIDS, HConstants.NO_NONCE, HConstants.NO_NONCE);
   }
 
@@ -171,7 +174,7 @@ public class HLogKey implements WritableComparable<HLogKey>, SequenceId {
    * @param now Time at which this edit was written.
    * @param clusterIds the clusters that have consumed the change(used in Replication)
    */
-  public HLogKey(final byte [] encodedRegionName, final TableName tablename,
+  public WALKey(final byte [] encodedRegionName, final TableName tablename,
       long logSeqNum, final long now, List<UUID> clusterIds, long nonceGroup, long nonce) {
     init(encodedRegionName, tablename, logSeqNum, now, clusterIds, nonceGroup, nonce);
   }
@@ -189,9 +192,9 @@ public class HLogKey implements WritableComparable<HLogKey>, SequenceId {
    * @param nonceGroup
    * @param nonce
    */
-  public HLogKey(final byte [] encodedRegionName, final TableName tablename,
+  public WALKey(final byte [] encodedRegionName, final TableName tablename,
       final long now, List<UUID> clusterIds, long nonceGroup, long nonce) {
-    init(encodedRegionName, tablename, WAL.NO_SEQUENCE_ID, now, clusterIds,
+    init(encodedRegionName, tablename, NO_SEQUENCE_ID, now, clusterIds,
       nonceGroup, nonce);
   }
 
@@ -207,7 +210,7 @@ public class HLogKey implements WritableComparable<HLogKey>, SequenceId {
    * @param nonceGroup
    * @param nonce
    */
-  public HLogKey(final byte [] encodedRegionName, final TableName tablename, long logSeqNum,
+  public WALKey(final byte [] encodedRegionName, final TableName tablename, long logSeqNum,
       long nonceGroup, long nonce) {
     init(encodedRegionName, tablename, logSeqNum, EnvironmentEdgeManager.currentTime(),
       EMPTY_UUIDS, nonceGroup, nonce);
@@ -257,7 +260,7 @@ public class HLogKey implements WritableComparable<HLogKey>, SequenceId {
   }
 
   /**
-   * Used to set original seq Id for HLogKey during wal replay
+   * Used to set original seq Id for WALKey during wal replay
    * @param seqId
    */
   public void setOrigLogSeqNum(final long seqId) {
@@ -265,7 +268,7 @@ public class HLogKey implements WritableComparable<HLogKey>, SequenceId {
   }
   
   /**
-   * Return a positive long if current HLogKey is created from a replay edit
+   * Return a positive long if current WALKey is created from a replay edit
    * @return original sequence number of the WALEdit
    */
   public long getOrigLogSeqNum() {
@@ -366,7 +369,7 @@ public class HLogKey implements WritableComparable<HLogKey>, SequenceId {
 
   /**
    * Produces a string map for this key. Useful for programmatic use and
-   * manipulation of the data stored in an HLogKey, for example, printing
+   * manipulation of the data stored in an WALKey, for example, printing
    * as JSON.
    *
    * @return a Map containing data from this key
@@ -387,7 +390,7 @@ public class HLogKey implements WritableComparable<HLogKey>, SequenceId {
     if (obj == null || getClass() != obj.getClass()) {
       return false;
     }
-    return compareTo((HLogKey)obj) == 0;
+    return compareTo((WALKey)obj) == 0;
   }
 
   @Override
@@ -399,7 +402,7 @@ public class HLogKey implements WritableComparable<HLogKey>, SequenceId {
   }
 
   @Override
-  public int compareTo(HLogKey o) {
+  public int compareTo(WALKey o) {
     int result = Bytes.compareTo(this.encodedRegionName, o.encodedRegionName);
     if (result == 0) {
       if (this.logSeqNum < o.logSeqNum) {
@@ -448,7 +451,7 @@ public class HLogKey implements WritableComparable<HLogKey>, SequenceId {
   @Override
   @Deprecated
   public void write(DataOutput out) throws IOException {
-    LOG.warn("HLogKey is being serialized to writable - only expected in test code");
+    LOG.warn("WALKey is being serialized to writable - only expected in test code");
     WritableUtils.writeVInt(out, VERSION.code);
     if (compressionContext == null) {
       Bytes.writeByteArray(out, this.encodedRegionName);
@@ -478,7 +481,7 @@ public class HLogKey implements WritableComparable<HLogKey>, SequenceId {
   @Override
   public void readFields(DataInput in) throws IOException {
     Version version = Version.UNVERSIONED;
-    // HLogKey was not versioned in the beginning.
+    // WALKey was not versioned in the beginning.
     // In order to introduce it now, we make use of the fact
     // that encodedRegionName was written with Bytes.writeByteArray,
     // which encodes the array length as a vint which is >= 0.
@@ -486,13 +489,13 @@ public class HLogKey implements WritableComparable<HLogKey>, SequenceId {
     // encodes the length of encodedRegionName.
     // If < 0 we just read the version and the next vint is the length.
     // @see Bytes#readByteArray(DataInput)
-    this.scopes = null; // writable HLogKey does not contain scopes
+    this.scopes = null; // writable WALKey does not contain scopes
     int len = WritableUtils.readVInt(in);
     byte[] tablenameBytes = null;
     if (len < 0) {
       // what we just read was the version
       version = Version.fromCode(len);
-      // We only compress V2 of HLogkey.
+      // We only compress V2 of WALkey.
       // If compression is on, the length is handled by the dictionary
       if (compressionContext == null || !version.atLeast(Version.COMPRESSED)) {
         len = WritableUtils.readVInt(in);
@@ -541,9 +544,9 @@ public class HLogKey implements WritableComparable<HLogKey>, SequenceId {
     // Do not need to read the clusters information as we are using protobufs from 0.95
   }
 
-  public WALKey.Builder getBuilder(WALCellCodec.ByteStringCompressor compressor)
+  public org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey.Builder getBuilder(WALCellCodec.ByteStringCompressor compressor)
   throws IOException {
-    WALKey.Builder builder = WALKey.newBuilder();
+    org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey.Builder builder = org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey.newBuilder();
     if (compressionContext == null) {
       builder.setEncodedRegionName(ByteStringer.wrap(this.encodedRegionName));
       builder.setTableName(ByteStringer.wrap(this.tablename.getName()));
@@ -582,7 +585,7 @@ public class HLogKey implements WritableComparable<HLogKey>, SequenceId {
   }
 
   public void readFieldsFromPb(
-      WALKey walKey, WALCellCodec.ByteStringUncompressor uncompressor) throws IOException {
+      org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey walKey, WALCellCodec.ByteStringUncompressor uncompressor) throws IOException {
     if (this.compressionContext != null) {
       this.encodedRegionName = uncompressor.uncompress(
           walKey.getEncodedRegionName(), compressionContext.regionDict);

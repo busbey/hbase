@@ -22,7 +22,7 @@ import java.io.IOException;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.Server;
-import org.apache.hadoop.hbase.regionserver.wal.WALService;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
 
 @InterfaceAudience.Private
 class MetaLogRoller extends LogRoller {
@@ -30,7 +30,7 @@ class MetaLogRoller extends LogRoller {
     super(server, services);
   }
   @Override
-  protected WALService getWAL() throws IOException {
+  protected WAL getWAL() throws IOException {
     //The argument to getWAL below could either be HRegionInfo.FIRST_META_REGIONINFO or
     //HRegionInfo.ROOT_REGIONINFO. Both these share the same WAL.
     return services.getWAL(HRegionInfo.FIRST_META_REGIONINFO);

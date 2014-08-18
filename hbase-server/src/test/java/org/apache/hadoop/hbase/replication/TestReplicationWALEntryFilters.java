@@ -31,9 +31,9 @@ import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.testclassification.ReplicationTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.TableName;
-import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
+import org.apache.hadoop.hbase.regionserver.wal.WALKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
-import org.apache.hadoop.hbase.regionserver.wal.WAL.Entry;
+import org.apache.hadoop.hbase.regionserver.wal.WALProvider.Entry;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.Assert;
 import org.junit.Test;
@@ -57,20 +57,20 @@ public class TestReplicationWALEntryFilters {
     SystemTableWALEntryFilter filter = new SystemTableWALEntryFilter();
 
     // meta
-    HLogKey key1 = new HLogKey( HRegionInfo.FIRST_META_REGIONINFO.getEncodedNameAsBytes(),
+    WALKey key1 = new WALKey( HRegionInfo.FIRST_META_REGIONINFO.getEncodedNameAsBytes(),
       TableName.META_TABLE_NAME);
     Entry metaEntry = new Entry(key1, null);
 
     assertNull(filter.filter(metaEntry));
 
     // ns table
-    HLogKey key2 = new HLogKey(new byte[] {}, TableName.NAMESPACE_TABLE_NAME);
+    WALKey key2 = new WALKey(new byte[] {}, TableName.NAMESPACE_TABLE_NAME);
     Entry nsEntry = new Entry(key2, null);
     assertNull(filter.filter(nsEntry));
 
     // user table
 
-    HLogKey key3 = new HLogKey(new byte[] {}, TableName.valueOf("foo"));
+    WALKey key3 = new WALKey(new byte[] {}, TableName.valueOf("foo"));
     Entry userEntry = new Entry(key3, null);
 
     assertEquals(userEntry, filter.filter(userEntry));
@@ -243,7 +243,7 @@ public class TestReplicationWALEntryFilters {
   }
 
   private Entry createEntry(byte[]... kvs) {
-    HLogKey key1 = new HLogKey(new byte[] {}, TableName.valueOf("foo"));
+    WALKey key1 = new WALKey(new byte[] {}, TableName.valueOf("foo"));
     WALEdit edit1 = new WALEdit();
 
     for (byte[] kv : kvs) {
@@ -259,7 +259,7 @@ public class TestReplicationWALEntryFilters {
       return;
     }
 
-    // do not compare HLogKeys
+    // do not compare WALKeys
 
     // compare kvs
     Assert.assertEquals(e1.getEdit() == null, e2.getEdit() == null);

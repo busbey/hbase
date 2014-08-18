@@ -70,8 +70,8 @@ import org.apache.hadoop.hbase.io.hfile.HFileContextBuilder;
 import org.apache.hadoop.hbase.monitoring.MonitoredTask;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionConfiguration;
 import org.apache.hadoop.hbase.regionserver.compactions.DefaultCompactor;
-import org.apache.hadoop.hbase.regionserver.wal.WALService;
-import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
+import org.apache.hadoop.hbase.regionserver.wal.WALFactory;
 import org.apache.hadoop.hbase.security.User;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
@@ -177,8 +177,8 @@ public class TestStore {
 
     htd.addFamily(hcd);
     HRegionInfo info = new HRegionInfo(htd.getTableName(), null, null, false);
-    WALService hlog = HLogFactory.createHLog(fs, basedir, logName, conf);
-    HRegion region = new HRegion(tableDir, hlog, fs, conf, info, htd, null);
+    WAL wal = WALFactory.createWAL(fs, basedir, logName, conf);
+    HRegion region = new HRegion(tableDir, wal, fs, conf, info, htd, null);
 
     store = new HStore(region, hcd, conf);
     return store;

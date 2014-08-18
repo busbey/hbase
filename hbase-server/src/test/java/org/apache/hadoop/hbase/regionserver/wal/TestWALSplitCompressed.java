@@ -26,11 +26,11 @@ import org.junit.BeforeClass;
 import org.junit.experimental.categories.Category;
 
 @Category({RegionServerTests.class, LargeTests.class})
-public class TestHLogSplitCompressed extends TestHLogSplit {
+public class TestWALSplitCompressed extends TestWALSplit {
 
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
-    TestHLogSplit.setUpBeforeClass();
+    TestWALSplit.setUpBeforeClass();
     TEST_UTIL.getConfiguration().setBoolean(HConstants.ENABLE_WAL_COMPRESSION, true);
   }
 }

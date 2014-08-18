@@ -49,8 +49,8 @@ import org.apache.hadoop.hbase.protobuf.generated.AdminProtos.ReplicateWALEntryR
 import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.regionserver.HRegionServer;
 import org.apache.hadoop.hbase.regionserver.TestRegionServerNoMaster;
-import org.apache.hadoop.hbase.regionserver.wal.WAL;
-import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
+import org.apache.hadoop.hbase.regionserver.wal.WALProvider.Entry;
+import org.apache.hadoop.hbase.regionserver.wal.WALKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 import org.apache.hadoop.hbase.replication.ReplicationEndpoint;
 import org.apache.hadoop.hbase.replication.ReplicationEndpoint.ReplicateContext;
@@ -141,7 +141,7 @@ public class TestRegionReplicaReplicationEndpointNoMaster {
   public void after() throws Exception {
   }
 
-  static ConcurrentLinkedQueue<WAL.Entry> entries = new ConcurrentLinkedQueue<WAL.Entry>();
+  static ConcurrentLinkedQueue<Entry> entries = new ConcurrentLinkedQueue<Entry>();
 
   public static class WALEditCopro extends BaseWALObserver {
     public WALEditCopro() {
@@ -149,10 +149,10 @@ public class TestRegionReplicaReplicationEndpointNoMaster {
     }
     @Override
     public void postWALWrite(ObserverContext<WALCoprocessorEnvironment> ctx, HRegionInfo info,
-        HLogKey logKey, WALEdit logEdit) throws IOException {
+        WALKey logKey, WALEdit logEdit) throws IOException {
       // only keep primary region's edits
       if (logKey.getTablename().equals(tableName) && info.getReplicaId() == 0) {
-        entries.add(new WAL.Entry(logKey, logEdit));
+        entries.add(new Entry(logKey, logEdit));
       }
     }
   }
@@ -179,9 +179,9 @@ public class TestRegionReplicaReplicationEndpointNoMaster {
     connection.close();
   }
 
-  private void replicateUsingCallable(ClusterConnection connection, Queue<WAL.Entry> entries)
+  private void replicateUsingCallable(ClusterConnection connection, Queue<Entry> entries)
       throws IOException, RuntimeException {
-    WAL.Entry entry;
+    Entry entry;
     while ((entry = entries.poll()) != null) {
       byte[] row = entry.getEdit().getCells().get(0).getRow();
       RegionLocations locations = connection.locateRegion(tableName, row, true, true);

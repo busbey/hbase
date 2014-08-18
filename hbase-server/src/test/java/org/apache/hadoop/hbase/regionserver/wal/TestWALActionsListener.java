@@ -40,7 +40,7 @@ import org.junit.experimental.categories.Category;
 import static org.junit.Assert.*;
 
 /**
- * Test that the actions are called while playing with an HLog
+ * Test that the actions are called while playing with an WAL
  */
 @Category({RegionServerTests.class, SmallTests.class})
 public class TestWALActionsListener {
@@ -90,7 +90,7 @@ public class TestWALActionsListener {
     List<WALActionsListener> list = new ArrayList<WALActionsListener>();
     list.add(observer);
     DummyWALActionsListener laterobserver = new DummyWALActionsListener();
-    WALService hlog = HLogFactory.createHLog(fs, TEST_UTIL.getDataTestDir(), logName,
+    WAL wal = WALFactory.createWAL(fs, TEST_UTIL.getDataTestDir(), logName,
                                        conf, list, null);
     final AtomicLong sequenceId = new AtomicLong(1);
     HRegionInfo hri = new HRegionInfo(TableName.valueOf(SOME_BYTES),
@@ -104,17 +104,19 @@ public class TestWALActionsListener {
       HTableDescriptor htd = new HTableDescriptor();
       htd.addFamily(new HColumnDescriptor(b));
 
-      hlog.append(hri, TableName.valueOf(b), edit, 0, htd, sequenceId);
+      final long txid = wal.append(htd, hri, new WALKey(hri.getEncodedNameAsBytes(),
+          TableName.valueOf(b), 0), edit, sequenceId, true, null);
+      wal.sync(txid);
       if (i == 10) {
-        hlog.registerWALActionsListener(laterobserver);
+        wal.registerWALActionsListener(laterobserver);
       }
       if (i % 2 == 0) {
-        hlog.rollWriter();
+        wal.rollWriter();
       }
     }
 
-    hlog.close();
-    hlog.closeAndDelete();
+    wal.close();
+    wal.closeAndDelete();
 
     assertEquals(11, observer.preLogRollCounter);
     assertEquals(11, observer.postLogRollCounter);
@@ -158,7 +160,7 @@ public class TestWALActionsListener {
     }
 
     @Override
-    public void visitLogEntryBeforeWrite(HRegionInfo info, HLogKey logKey,
+    public void visitLogEntryBeforeWrite(HRegionInfo info, WALKey logKey,
         WALEdit logEdit) {
       // Not interested
 
@@ -169,7 +171,7 @@ public class TestWALActionsListener {
       closedCount++;
     }
 
-    public void visitLogEntryBeforeWrite(HTableDescriptor htd, HLogKey logKey, WALEdit logEdit) {
+    public void visitLogEntryBeforeWrite(HTableDescriptor htd, WALKey logKey, WALEdit logEdit) {
       //To change body of implemented methods use File | Settings | File Templates.
     }
 

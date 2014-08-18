@@ -93,15 +93,14 @@ import org.apache.hadoop.hbase.protobuf.generated.AdminProtos.WALEntry;
 import org.apache.hadoop.hbase.protobuf.generated.ClientProtos.MutationProto.MutationType;
 import org.apache.hadoop.hbase.protobuf.generated.HBaseProtos;
 import org.apache.hadoop.hbase.protobuf.generated.WALProtos.CompactionDescriptor;
-import org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey;
 import org.apache.hadoop.hbase.protobuf.generated.ZooKeeperProtos.RegionStoreSequenceIds;
 import org.apache.hadoop.hbase.protobuf.generated.ZooKeeperProtos.SplitLogTask.RecoveryMode;
 import org.apache.hadoop.hbase.protobuf.generated.ZooKeeperProtos.StoreSequenceId;
 import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.regionserver.LastSequenceId;
-import org.apache.hadoop.hbase.regionserver.wal.WAL.Entry;
-import org.apache.hadoop.hbase.regionserver.wal.WAL.Reader;
-import org.apache.hadoop.hbase.regionserver.wal.WAL.Writer;
+import org.apache.hadoop.hbase.regionserver.wal.WALProvider.Entry;
+import org.apache.hadoop.hbase.regionserver.wal.WALProvider.Reader;
+import org.apache.hadoop.hbase.regionserver.wal.WALProvider.Writer;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.CancelableProgressable;
 import org.apache.hadoop.hbase.util.ClassSize;
@@ -119,8 +118,13 @@ import org.apache.hadoop.ipc.RemoteException;
  * region to replay on startup. Delete the old log files when finished.
  */
 @InterfaceAudience.Private
-public class HLogSplitter {
-  static final Log LOG = LogFactory.getLog(HLogSplitter.class);
+public class WALSplitter {
+  static final Log LOG = LogFactory.getLog(WALSplitter.class);
+
+
+  /** By default we retry errors in splitting, rather than skipping. */
+  public static final boolean SPLIT_SKIP_ERRORS_DEFAULT = false;
+
 
   // Parameters for split process
   protected final Path rootDir;
@@ -160,7 +164,7 @@ public class HLogSplitter {
   // Min batch size when replay WAL edits
   private final int minBatchSize;
 
-  HLogSplitter(Configuration conf, Path rootDir,
+  WALSplitter(Configuration conf, Path rootDir,
       FileSystem fs, LastSequenceId idChecker,
       CoordinatedStateManager csm, RecoveryMode mode) {
     this.conf = HBaseConfiguration.create(conf);
@@ -196,7 +200,7 @@ public class HLogSplitter {
   }
 
   /**
-   * Splits a HLog file into region's recovered-edits directory.
+   * Splits a WAL file into region's recovered-edits directory.
    * This is the main entry point for distributed log splitting from SplitLogWorker.
    * <p>
    * If the log file has N regions then N recovered.edits files will be produced.
@@ -214,7 +218,7 @@ public class HLogSplitter {
   public static boolean splitLogFile(Path rootDir, FileStatus logfile, FileSystem fs,
       Configuration conf, CancelableProgressable reporter, LastSequenceId idChecker,
       CoordinatedStateManager cp, RecoveryMode mode) throws IOException {
-    HLogSplitter s = new HLogSplitter(conf, rootDir, fs, idChecker, cp, mode);
+    WALSplitter s = new WALSplitter(conf, rootDir, fs, idChecker, cp, mode);
     return s.splitLogFile(logfile, reporter);
   }
 
@@ -228,8 +232,8 @@ public class HLogSplitter {
     List<Path> splits = new ArrayList<Path>();
     if (logfiles != null && logfiles.length > 0) {
       for (FileStatus logfile: logfiles) {
-        HLogSplitter s =
-            new HLogSplitter(conf, rootDir, fs, null, null, RecoveryMode.LOG_SPLITTING);
+        WALSplitter s =
+            new WALSplitter(conf, rootDir, fs, null, null, RecoveryMode.LOG_SPLITTING);
         if (s.splitLogFile(logfile, null)) {
           finishSplitLogFile(rootDir, oldLogDir, logfile.getPath(), conf);
           if (s.outputSink.splits != null) {
@@ -250,7 +254,7 @@ public class HLogSplitter {
     boolean isCorrupted = false;
     Preconditions.checkState(status == null);
     boolean skipErrors = conf.getBoolean("hbase.hlog.split.skip.errors",
-      WAL.SPLIT_SKIP_ERRORS_DEFAULT);
+      SPLIT_SKIP_ERRORS_DEFAULT);
     int interval = conf.getInt("hbase.splitlog.report.interval.loglines", 1024);
     Path logPath = logfile.getPath();
     boolean outputSinkStarted = false;
@@ -263,7 +267,7 @@ public class HLogSplitter {
           "Splitting log file " + logfile.getPath() + "into a temporary staging area.");
     try {
       long logLength = logfile.getLen();
-      LOG.info("Splitting hlog: " + logPath + ", length=" + logLength);
+      LOG.info("Splitting wal: " + logPath + ", length=" + logLength);
       LOG.info("DistributedLogReplay = " + this.distributedLogReplay);
       status.setStatus("Opening log file");
       if (reporter != null && !reporter.progress()) {
@@ -299,7 +303,7 @@ public class HLogSplitter {
       outputSinkStarted = true;
       Entry entry;
       Long lastFlushedSequenceId = -1L;
-      ServerName serverName = HLogUtil.getServerNameFromHLogDirectoryName(logPath);
+      ServerName serverName = AbstractWAL.getServerNameFromWALDirectoryName(logPath);
       failedServerName = (serverName == null) ? "" : serverName.getServerName();
       while ((entry = getNextLogLine(in, logPath, skipErrors)) != null) {
         byte[] region = entry.getKey().getEncodedRegionName();
@@ -452,7 +456,7 @@ public class HLogSplitter {
     }
 
     for (Path p : processedLogs) {
-      Path newPath = FSHLog.getHLogArchivePath(oldLogDir, p);
+      Path newPath = FSHLog.getWALArchivePath(oldLogDir, p);
       if (fs.exists(p)) {
         if (!FSUtils.renameAndSetModifyTime(fs, p, newPath)) {
           LOG.warn("Unable to move  " + p + " to " + newPath);
@@ -482,7 +486,7 @@ public class HLogSplitter {
     Path tableDir = FSUtils.getTableDir(rootDir, logEntry.getKey().getTablename());
     String encodedRegionName = Bytes.toString(logEntry.getKey().getEncodedRegionName());
     Path regiondir = HRegion.getRegionDir(tableDir, encodedRegionName);
-    Path dir = HLogUtil.getRegionDirRecoveredEditsDir(regiondir);
+    Path dir = AbstractWAL.getRegionDirRecoveredEditsDir(regiondir);
 
     if (!fs.exists(regiondir)) {
       LOG.info("This region's directory doesn't exist: "
@@ -516,7 +520,7 @@ public class HLogSplitter {
   }
 
   static String getTmpRecoveredEditsFileName(String fileName) {
-    return fileName + WAL.RECOVERED_LOG_TMPFILE_SUFFIX;
+    return fileName + AbstractWAL.RECOVERED_LOG_TMPFILE_SUFFIX;
   }
 
   /**
@@ -589,7 +593,7 @@ public class HLogSplitter {
         throw e; // Don't mark the file corrupted if interrupted, or not skipErrors
       }
       CorruptedLogFileException t =
-        new CorruptedLogFileException("skipErrors=true Could not open hlog " +
+        new CorruptedLogFileException("skipErrors=true Could not open wal " +
             path + " ignoring");
       t.initCause(e);
       throw t;
@@ -603,7 +607,7 @@ public class HLogSplitter {
       return in.next();
     } catch (EOFException eof) {
       // truncated files are expected if a RS crashes (see HBASE-2643)
-      LOG.info("EOF from hlog " + path + ".  continuing");
+      LOG.info("EOF from wal " + path + ".  continuing");
       return null;
     } catch (IOException e) {
       // If the IOE resulted from bad file format,
@@ -611,7 +615,7 @@ public class HLogSplitter {
       if (e.getCause() != null &&
           (e.getCause() instanceof ParseException ||
            e.getCause() instanceof org.apache.hadoop.fs.ChecksumException)) {
-        LOG.warn("Parse exception " + e.getCause().toString() + " from hlog "
+        LOG.warn("Parse exception " + e.getCause().toString() + " from wal "
            + path + ".  continuing");
         return null;
       }
@@ -620,7 +624,7 @@ public class HLogSplitter {
       }
       CorruptedLogFileException t =
         new CorruptedLogFileException("skipErrors=true Ignoring exception" +
-            " while parsing hlog " + path + ". Marking as corrupted");
+            " while parsing wal " + path + ". Marking as corrupted");
       t.initCause(e);
       throw t;
     }
@@ -631,7 +635,7 @@ public class HLogSplitter {
    */
   protected Writer createWriter(FileSystem fs, Path logfile, Configuration conf)
       throws IOException {
-    return HLogFactory.createRecoveredEditsWriter(fs, logfile, conf);
+    return WALFactory.createRecoveredEditsWriter(fs, logfile, conf);
   }
 
   /**
@@ -639,7 +643,7 @@ public class HLogSplitter {
    */
   protected Reader getReader(FileSystem fs, Path curLogFile,
       Configuration conf, CancelableProgressable reporter) throws IOException {
-    return HLogFactory.createReader(fs, curLogFile, conf, reporter);
+    return WALFactory.createReader(fs, curLogFile, conf, reporter);
   }
 
   /**
@@ -717,7 +721,7 @@ public class HLogSplitter {
      * @throws IOException
      */
     public void appendEntry(Entry entry) throws InterruptedException, IOException {
-      HLogKey key = entry.getKey();
+      WALKey key = entry.getKey();
 
       RegionEntryBuffer buffer;
       long incrHeap;
@@ -820,14 +824,14 @@ public class HLogSplitter {
       internify(entry);
       entryBuffer.add(entry);
       long incrHeap = entry.getEdit().heapSize() +
-        ClassSize.align(2 * ClassSize.REFERENCE) + // HLogKey pointers
+        ClassSize.align(2 * ClassSize.REFERENCE) + // WALKey pointers
         0; // TODO linkedlist entry
       heapInBuffer += incrHeap;
       return incrHeap;
     }
 
     private void internify(Entry entry) {
-      HLogKey k = entry.getKey();
+      WALKey k = entry.getKey();
       k.internTableName(this.tableName);
       k.internEncodedRegionName(this.encodedRegionName);
     }
@@ -1399,8 +1403,8 @@ public class HLogSplitter {
      * Map key -> value layout
      * <servername>:<table name> -> Queue<Row>
      */
-    private Map<String, List<Pair<HRegionLocation, WAL.Entry>>> serverToBufferQueueMap =
-        new ConcurrentHashMap<String, List<Pair<HRegionLocation, WAL.Entry>>>();
+    private Map<String, List<Pair<HRegionLocation, Entry>>> serverToBufferQueueMap =
+        new ConcurrentHashMap<String, List<Pair<HRegionLocation, Entry>>>();
     private List<Throwable> thrown = new ArrayList<Throwable>();
 
     // The following sink is used in distrubitedLogReplay mode for entries of regions in a disabling
@@ -1445,10 +1449,10 @@ public class HLogSplitter {
       // process workitems
       String maxLocKey = null;
       int maxSize = 0;
-      List<Pair<HRegionLocation, WAL.Entry>> maxQueue = null;
+      List<Pair<HRegionLocation, Entry>> maxQueue = null;
       synchronized (this.serverToBufferQueueMap) {
         for (String key : this.serverToBufferQueueMap.keySet()) {
-          List<Pair<HRegionLocation, WAL.Entry>> curQueue = this.serverToBufferQueueMap.get(key);
+          List<Pair<HRegionLocation, Entry>> curQueue = this.serverToBufferQueueMap.get(key);
           if (curQueue.size() > maxSize) {
             maxSize = curQueue.size();
             maxQueue = curQueue;
@@ -1482,7 +1486,7 @@ public class HLogSplitter {
     private void groupEditsByServer(List<Entry> entries) throws IOException {
       Set<TableName> nonExistentTables = null;
       Long cachedLastFlushedSequenceId = -1l;
-      for (WAL.Entry entry : entries) {
+      for (Entry entry : entries) {
         WALEdit edit = entry.getEdit();
         TableName table = entry.getKey().getTablename();
         // clear scopes which isn't needed for recovery
@@ -1555,7 +1559,7 @@ public class HLogSplitter {
               lastFlushedSequenceIds.get(loc.getRegionInfo().getEncodedName());
           if (cachedLastFlushedSequenceId != null
               && cachedLastFlushedSequenceId >= entry.getKey().getLogSeqNum()) {
-            // skip the whole HLog entry
+            // skip the whole WAL entry
             this.skippedEdits.incrementAndGet();
             needSkip = true;
             break;
@@ -1584,13 +1588,13 @@ public class HLogSplitter {
 
         synchronized (serverToBufferQueueMap) {
           locKey = loc.getHostnamePort() + KEY_DELIMITER + table;
-          List<Pair<HRegionLocation, WAL.Entry>> queue = serverToBufferQueueMap.get(locKey);
+          List<Pair<HRegionLocation, Entry>> queue = serverToBufferQueueMap.get(locKey);
           if (queue == null) {
             queue =
-                Collections.synchronizedList(new ArrayList<Pair<HRegionLocation, WAL.Entry>>());
+                Collections.synchronizedList(new ArrayList<Pair<HRegionLocation, Entry>>());
             serverToBufferQueueMap.put(locKey, queue);
           }
-          queue.add(new Pair<HRegionLocation, WAL.Entry>(loc, entry));
+          queue.add(new Pair<HRegionLocation, Entry>(loc, entry));
         }
         // store regions we have recovered so far
         addToRecoveredRegions(loc.getRegionInfo().getEncodedName());
@@ -1659,7 +1663,7 @@ public class HLogSplitter {
       return loc;
     }
 
-    private void processWorkItems(String key, List<Pair<HRegionLocation, WAL.Entry>> actions)
+    private void processWorkItems(String key, List<Pair<HRegionLocation, Entry>> actions)
         throws IOException {
       RegionServerWriter rsw = null;
 
@@ -1741,7 +1745,7 @@ public class HLogSplitter {
     public boolean flush() throws IOException {
       String curLoc = null;
       int curSize = 0;
-      List<Pair<HRegionLocation, WAL.Entry>> curQueue = null;
+      List<Pair<HRegionLocation, Entry>> curQueue = null;
       synchronized (this.serverToBufferQueueMap) {
         for (String locationKey : this.serverToBufferQueueMap.keySet()) {
           curQueue = this.serverToBufferQueueMap.get(locationKey);
@@ -1980,18 +1984,18 @@ public class HLogSplitter {
   }
 
   /**
-   * This function is used to construct mutations from a WALEntry. It also reconstructs HLogKey &
+   * This function is used to construct mutations from a WALEntry. It also reconstructs WALKey &
    * WALEdit from the passed in WALEntry
    * @param entry
    * @param cells
-   * @param logEntry pair of HLogKey and WALEdit instance stores HLogKey and WALEdit instances
+   * @param logEntry pair of WALKey and WALEdit instance stores WALKey and WALEdit instances
    *          extracted from the passed in WALEntry.
    * @param addLogReplayTag
    * @return list of Pair<MutationType, Mutation> to be replayed
    * @throws IOException
    */
   public static List<MutationReplay> getMutationsFromWALEntry(WALEntry entry, CellScanner cells,
-      Pair<HLogKey, WALEdit> logEntry, boolean addLogReplayTag, Durability durability)
+      Pair<WALKey, WALEdit> logEntry, boolean addLogReplayTag, Durability durability)
           throws IOException {
 
     if (entry == null) {
@@ -2005,7 +2009,7 @@ public class HLogSplitter {
     List<MutationReplay> mutations = new ArrayList<MutationReplay>();
     Cell previousCell = null;
     Mutation m = null;
-    HLogKey key = null;
+    WALKey key = null;
     WALEdit val = null;
     if (logEntry != null) val = new WALEdit();
 
@@ -2051,16 +2055,16 @@ public class HLogSplitter {
       previousCell = cell;
     }
 
-    // reconstruct HLogKey
+    // reconstruct WALKey
     if (logEntry != null) {
-      WALKey walKey = entry.getKey();
-      List<UUID> clusterIds = new ArrayList<UUID>(walKey.getClusterIdsCount());
+      org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey walKeyProto = entry.getKey();
+      List<UUID> clusterIds = new ArrayList<UUID>(walKeyProto.getClusterIdsCount());
       for (HBaseProtos.UUID uuid : entry.getKey().getClusterIdsList()) {
         clusterIds.add(new UUID(uuid.getMostSigBits(), uuid.getLeastSigBits()));
       }
-      key = new HLogKey(walKey.getEncodedRegionName().toByteArray(), TableName.valueOf(walKey
-              .getTableName().toByteArray()), replaySeqId, walKey.getWriteTime(), clusterIds,
-              walKey.getNonceGroup(), walKey.getNonce());
+      key = new WALKey(walKeyProto.getEncodedRegionName().toByteArray(), TableName.valueOf(
+              walKeyProto.getTableName().toByteArray()), replaySeqId, walKeyProto.getWriteTime(),
+              clusterIds, walKeyProto.getNonceGroup(), walKeyProto.getNonce());
       logEntry.setFirst(key);
       logEntry.setSecond(val);
     }

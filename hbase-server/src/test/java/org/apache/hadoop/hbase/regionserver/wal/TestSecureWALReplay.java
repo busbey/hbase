@@ -35,9 +35,9 @@ public class TestSecureWALReplay extends TestWALReplay {
     conf.set(HConstants.CRYPTO_KEYPROVIDER_CONF_KEY, KeyProviderForTesting.class.getName());
     conf.set(HConstants.CRYPTO_MASTERKEY_NAME_CONF_KEY, "hbase");
     conf.setClass("hbase.regionserver.hlog.reader.impl", SecureProtobufLogReader.class,
-      WAL.Reader.class);
+      WALProvider.Reader.class);
     conf.setClass("hbase.regionserver.hlog.writer.impl", SecureProtobufLogWriter.class,
-      WAL.Writer.class);
+      WALProvider.Writer.class);
     conf.setBoolean(HConstants.ENABLE_WAL_ENCRYPTION, true);
     TestWALReplay.setUpBeforeClass();
   }

@@ -51,8 +51,8 @@ import org.apache.hadoop.hbase.exceptions.DeserializationException;
 import org.apache.hadoop.hbase.fs.HFileSystem;
 import org.apache.hadoop.hbase.protobuf.generated.ZooKeeperProtos.SplitLogTask.RecoveryMode;
 import org.apache.hadoop.hbase.regionserver.HRegion;
-import org.apache.hadoop.hbase.regionserver.wal.HLogUtil;
-import org.apache.hadoop.hbase.regionserver.wal.WAL;
+import org.apache.hadoop.hbase.regionserver.wal.AbstractWAL;
+import org.apache.hadoop.hbase.regionserver.wal.WALSplitter;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.FSTableDescriptors;
@@ -94,14 +94,14 @@ public class MasterFileSystem {
   final static PathFilter META_FILTER = new PathFilter() {
     @Override
     public boolean accept(Path p) {
-      return HLogUtil.isMetaFile(p);
+      return AbstractWAL.isMetaFile(p);
     }
   };
 
   final static PathFilter NON_META_FILTER = new PathFilter() {
     @Override
     public boolean accept(Path p) {
-      return !HLogUtil.isMetaFile(p);
+      return !AbstractWAL.isMetaFile(p);
     }
   };
 
@@ -216,7 +216,7 @@ public class MasterFileSystem {
    */
   Set<ServerName> getFailedServersFromLogFolders() {
     boolean retrySplitting = !conf.getBoolean("hbase.hlog.split.skip.errors",
-      WAL.SPLIT_SKIP_ERRORS_DEFAULT);
+      WALSplitter.SPLIT_SKIP_ERRORS_DEFAULT);
 
     Set<ServerName> serverNames = new HashSet<ServerName>();
     Path logsDirPath = new Path(this.rootdir, HConstants.HREGION_LOGDIR_NAME);
@@ -241,8 +241,8 @@ public class MasterFileSystem {
         for (FileStatus status : logFolders) {
           String sn = status.getPath().getName();
           // truncate splitting suffix if present (for ServerName parsing)
-          if (sn.endsWith(WAL.SPLITTING_EXT)) {
-            sn = sn.substring(0, sn.length() - WAL.SPLITTING_EXT.length());
+          if (sn.endsWith(AbstractWAL.SPLITTING_EXT)) {
+            sn = sn.substring(0, sn.length() - AbstractWAL.SPLITTING_EXT.length());
           }
           ServerName serverName = ServerName.parseServerName(sn);
           if (!onlineServers.contains(serverName)) {
@@ -283,7 +283,7 @@ public class MasterFileSystem {
   }
 
   /**
-   * Specialized method to handle the splitting for meta HLog
+   * Specialized method to handle the splitting for meta WAL
    * @param serverName
    * @throws IOException
    */
@@ -294,7 +294,7 @@ public class MasterFileSystem {
   }
 
   /**
-   * Specialized method to handle the splitting for meta HLog
+   * Specialized method to handle the splitting for meta WAL
    * @param serverNames
    * @throws IOException
    */
@@ -312,9 +312,9 @@ public class MasterFileSystem {
     }
     try {
       for (ServerName serverName : serverNames) {
-        Path logDir = new Path(this.rootdir, HLogUtil.getHLogDirectoryName(serverName.toString()));
-        Path splitDir = logDir.suffix(WAL.SPLITTING_EXT);
-        // Rename the directory so a rogue RS doesn't create more HLogs
+        Path logDir = new Path(this.rootdir, AbstractWAL.getWALDirectoryName(serverName.toString()));
+        Path splitDir = logDir.suffix(AbstractWAL.SPLITTING_EXT);
+        // Rename the directory so a rogue RS doesn't create more WALs
         if (fs.exists(logDir)) {
           if (!this.fs.rename(logDir, splitDir)) {
             throw new IOException("Failed fs.rename for log split: " + logDir);
@@ -367,8 +367,8 @@ public class MasterFileSystem {
   }
 
   /**
-   * This method is the base split method that splits HLog files matching a filter. Callers should
-   * pass the appropriate filter for meta and non-meta HLogs.
+   * This method is the base split method that splits WAL files matching a filter. Callers should
+   * pass the appropriate filter for meta and non-meta WALs.
    * @param serverNames
    * @param filter
    * @throws IOException

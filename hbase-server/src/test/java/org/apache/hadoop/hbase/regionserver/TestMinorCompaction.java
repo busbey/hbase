@@ -37,7 +37,7 @@ import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Result;
-import org.apache.hadoop.hbase.regionserver.wal.WALService;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.After;
 import org.junit.Before;
@@ -90,9 +90,9 @@ public class TestMinorCompaction {
 
   @After
   public void tearDown() throws Exception {
-    WALService hlog = r.getLog();
+    WAL wal = r.getLog();
     this.r.close();
-    hlog.closeAndDelete();
+    wal.closeAndDelete();
   }
 
   @Test

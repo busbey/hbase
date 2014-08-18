@@ -32,7 +32,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.regionserver.wal.HLogUtil;
+import org.apache.hadoop.hbase.regionserver.wal.AbstractWAL;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.testclassification.MiscTests;
 import org.junit.*;
@@ -174,7 +174,7 @@ public class TestFSVisitor {
   private void createRecoverEdits(final Path tableDir, final Set<String> tableRegions,
       final Set<String> recoverEdits) throws IOException {
     for (String region: tableRegions) {
-      Path regionEditsDir = HLogUtil.getRegionDirRecoveredEditsDir(new Path(tableDir, region));
+      Path regionEditsDir = AbstractWAL.getRegionDirRecoveredEditsDir(new Path(tableDir, region));
       long seqId = System.currentTimeMillis();
       for (int i = 0; i < 3; ++i) {
         String editName = String.format("%019d", seqId + i);

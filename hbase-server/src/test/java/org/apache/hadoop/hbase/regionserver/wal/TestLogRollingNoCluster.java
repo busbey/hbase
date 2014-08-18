@@ -39,7 +39,7 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 /**
- * Test many concurrent appenders to an {@link #HLog} while rolling the log.
+ * Test many concurrent appenders to an {@link #WAL} while rolling the log.
  */
 @Category({RegionServerTests.class, SmallTests.class})
 public class TestLogRollingNoCluster {
@@ -59,7 +59,7 @@ public class TestLogRollingNoCluster {
     Path dir = TEST_UTIL.getDataTestDir();
     // The implementation needs to know the 'handler' count.
     TEST_UTIL.getConfiguration().setInt(HConstants.REGION_SERVER_HANDLER_COUNT, THREAD_COUNT);
-    WALService wal = HLogFactory.createHLog(fs, dir, "logs", TEST_UTIL.getConfiguration());
+    WAL wal = WALFactory.createWAL(fs, dir, "logs", TEST_UTIL.getConfiguration());
     
     Appender [] appenders = null;
 
@@ -90,11 +90,11 @@ public class TestLogRollingNoCluster {
    */
   static class Appender extends Thread {
     private final Log log;
-    private final WALService wal;
+    private final WAL wal;
     private final int count;
     private Exception e = null;
 
-    Appender(final WALService wal, final int index, final int count) {
+    Appender(final WAL wal, final int index, final int count) {
       super("" + index);
       this.wal = wal;
       this.count = count;
@@ -126,9 +126,11 @@ public class TestLogRollingNoCluster {
           WALEdit edit = new WALEdit();
           byte[] bytes = Bytes.toBytes(i);
           edit.add(new KeyValue(bytes, bytes, bytes, now, EMPTY_1K_ARRAY));
-          this.wal.append(HRegionInfo.FIRST_META_REGIONINFO,
-              TableName.META_TABLE_NAME,
-              edit, now, TEST_UTIL.getMetaTableDescriptor(), sequenceId);
+          final HRegionInfo hri = HRegionInfo.FIRST_META_REGIONINFO;
+          final HTableDescriptor htd = TEST_UTIL.getMetaTableDescriptor();
+          final long txid = wal.append(htd, hri, new WALKey(hri.getEncodedNameAsBytes(),
+              TableName.META_TABLE_NAME, now), edit, sequenceId, true, null);
+          wal.sync(txid);
         }
         String msg = getName() + " finished";
         if (isException())

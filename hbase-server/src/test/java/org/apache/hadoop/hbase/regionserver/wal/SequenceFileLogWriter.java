@@ -42,7 +42,7 @@ import org.apache.hadoop.io.compress.CompressionCodec;
 import org.apache.hadoop.io.compress.DefaultCodec;
 
 /**
- * Implementation of {@link WALService.Writer} that delegates to
+ * Implementation of {@link WALProvider.Writer} that delegates to
  * SequenceFile.Writer. Legacy implementation only used for compat tests.
  */
 @InterfaceAudience.LimitedPrivate(HBaseInterfaceAudience.CONFIG)
@@ -97,7 +97,7 @@ public class SequenceFileLogWriter extends WriterBase {
             Configuration.class, Path.class, Class.class, Class.class,
             Integer.TYPE, Short.TYPE, Long.TYPE, Boolean.TYPE,
             CompressionType.class, CompressionCodec.class, Metadata.class})
-        .invoke(null, new Object[] {fs, conf, path, HLogKey.class, WALEdit.class,
+        .invoke(null, new Object[] {fs, conf, path, WALKey.class, WALEdit.class,
             Integer.valueOf(FSUtils.getDefaultBufferSize(fs)),
             Short.valueOf((short)
               conf.getInt("hbase.regionserver.hlog.replication",
@@ -119,7 +119,7 @@ public class SequenceFileLogWriter extends WriterBase {
     if (this.writer == null) {
       LOG.debug("new createWriter -- HADOOP-6840 -- not available");
       this.writer = SequenceFile.createWriter(fs, conf, path,
-        HLogKey.class, WALEdit.class,
+        WALKey.class, WALEdit.class,
         FSUtils.getDefaultBufferSize(fs),
         (short) conf.getInt("hbase.regionserver.hlog.replication",
           FSUtils.getDefaultReplication(fs, path)),
@@ -163,7 +163,7 @@ public class SequenceFileLogWriter extends WriterBase {
   }
 
   @Override
-  public void append(WAL.Entry entry) throws IOException {
+  public void append(WALProvider.Entry entry) throws IOException {
     entry.setCompressionContext(compressionContext);
     try {
       this.writer.append(entry.getKey(), entry.getEdit());
@@ -215,7 +215,7 @@ public class SequenceFileLogWriter extends WriterBase {
   }
 
   /**
-   * This method is empty as trailer is added only in Protobuf based hlog readers/writers.
+   * This method is empty as trailer is added only in Protobuf based wal readers/writers.
    */
   @Override
   public void setWALTrailer(WALTrailer walTrailer) {

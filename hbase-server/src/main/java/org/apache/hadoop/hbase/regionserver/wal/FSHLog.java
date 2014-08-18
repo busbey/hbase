@@ -88,8 +88,8 @@ import com.lmax.disruptor.dsl.Disruptor;
 import com.lmax.disruptor.dsl.ProducerType;
 
 /**
- * Implementation of {@link HLog} to go against {@link FileSystem}; i.e. keep WALs in HDFS.
- * Only one HLog/WAL is ever being written at a time.  When a WAL hits a configured maximum size,
+ * Implementation of {@link WAL} to go against {@link FileSystem}; i.e. keep WALs in HDFS.
+ * Only one WAL is ever being written at a time.  When a WAL hits a configured maximum size,
  * it is rolled.  This is done internal to the implementation.
  *
  * <p>As data is flushed from the MemStore to other on-disk structures (files sorted by
@@ -101,7 +101,7 @@ import com.lmax.disruptor.dsl.ProducerType;
  * <code>F</code> when all of the edits in <code>F</code> have a log-sequence-id that's older
  * (smaller) than the most-recent flush.
  *
- * <p>To read an HLog, call {@link HLogFactory#createReader(org.apache.hadoop.fs.FileSystem,
+ * <p>To read an WAL, call {@link WALFactory#createReader(org.apache.hadoop.fs.FileSystem,
  * org.apache.hadoop.fs.Path, org.apache.hadoop.conf.Configuration)}.
  */
 @InterfaceAudience.Private
@@ -240,14 +240,14 @@ class FSHLog extends AbstractWAL {
   // The timestamp (in ms) when the log file was created.
   private final AtomicLong filenum = new AtomicLong(-1);
 
-  // Number of transactions in the current Hlog.
+  // Number of transactions in the current Wal.
   private final AtomicInteger numEntries = new AtomicInteger(0);
 
   // If > than this size, roll the log.
   private final long logrollsize;
 
   /**
-   * The total size of hlog
+   * The total size of wal
    */
   private AtomicLong totalLogSize = new AtomicLong(0);
 
@@ -362,15 +362,15 @@ class FSHLog extends AbstractWAL {
    * Constructor.
    *
    * @param fs filesystem handle
-   * @param root path for stored and archived hlogs
-   * @param logDir dir where hlogs are stored
+   * @param root path for stored and archived wals
+   * @param logDir dir where wals are stored
    * @param conf configuration to use
    * @throws IOException
    */
   public FSHLog(final FileSystem fs, final Path root, final String logDir,
     final Configuration conf)
   throws IOException {
-    this(fs, root, logDir, HConstants.HREGION_OLDLOGDIR_NAME, conf, null, true, null, false);
+    this(fs, root, logDir, HConstants.HREGION_OLDLOGDIR_NAME, conf, null, true, null, null);
   }
 
   /**
@@ -378,12 +378,12 @@ class FSHLog extends AbstractWAL {
    *
    * You should never have to load an existing log. If there is a log at
    * startup, it should have already been processed and deleted by the time the
-   * HLog object is started up.
+   * WAL object is started up.
    *
    * @param fs filesystem handle
    * @param rootDir path to where logs and oldlogs
-   * @param logDir dir where hlogs are stored
-   * @param oldLogDir dir where hlogs are archived
+   * @param logDir dir where wals are stored
+   * @param oldLogDir dir where wals are archived
    * @param conf configuration to use
    * @param listeners Listeners on WAL events. Listeners passed here will
    * be registered before we do anything else; e.g. the
@@ -391,16 +391,16 @@ class FSHLog extends AbstractWAL {
    * @param failIfLogDirExists If true IOException will be thrown if dir already exists.
    * @param prefix should always be hostname and port in distributed env and
    *        it will be URL encoded before being used.
-   *        If prefix is null, "hlog" will be used
-   * @param forMeta if this hlog is meant for meta updates
+   *        If prefix is null, "wal" will be used
+   * @param suffix will be url encoded. null is treated as empty
    * @throws IOException
    */
   public FSHLog(final FileSystem fs, final Path rootDir, final String logDir,
       final String oldLogDir, final Configuration conf,
       final List<WALActionsListener> listeners,
-      final boolean failIfLogDirExists, final String prefix, boolean forMeta)
+      final boolean failIfLogDirExists, final String prefix, final String suffix)
   throws IOException {
-    super(fs, rootDir, logDir, oldLogDir, conf, listeners, failIfLogDirExists, prefix, forMeta);
+    super(fs, rootDir, logDir, oldLogDir, conf, listeners, failIfLogDirExists, prefix, suffix);
 
     // Get size to roll log at. Roll at 95% of HDFS block size so we avoid crossing HDFS blocks
     // (it costs a little x'ing bocks)
@@ -496,7 +496,7 @@ class FSHLog extends AbstractWAL {
     long currentFilenum = this.filenum.get();
     Path oldPath = null;
     if (currentFilenum > 0) {
-      // ComputeFilename  will take care of meta hlog filename
+      // ComputeFilename  will take care of meta wal filename
       oldPath = computeFilename(currentFilenum);
     } // I presume if currentFilenum is <= 0, this is first file and null for oldPath if fine?
     return oldPath;
@@ -552,11 +552,11 @@ class FSHLog extends AbstractWAL {
       if (!force && (this.writer != null && this.numEntries.get() <= 0)) return null;
       byte [][] regionsToFlush = null;
       if (this.closed) {
-        LOG.debug("HLog closed. Skipping rolling of writer");
+        LOG.debug("WAL closed. Skipping rolling of writer");
         return regionsToFlush;
       }
       if (!closeBarrier.beginOp()) {
-        LOG.debug("HLog closing. Skipping rolling of writer");
+        LOG.debug("WAL closing. Skipping rolling of writer");
         return regionsToFlush;
       }
       TraceScope scope = Trace.startSpan("FSHLog.rollWriter");
@@ -604,10 +604,7 @@ class FSHLog extends AbstractWAL {
    */
   protected Writer createWriterInstance(final FileSystem fs, final Path path,
       final Configuration conf) throws IOException {
-    if (forMeta) {
-      //TODO: set a higher replication for the hlog files (HBASE-6773)
-    }
-    return HLogFactory.createWALWriter(fs, path, conf);
+    return WALFactory.createWALWriter(fs, path, conf);
   }
 
   /**
@@ -655,7 +652,7 @@ class FSHLog extends AbstractWAL {
    * {@link #oldestUnflushedRegionSequenceIds} and {@link #lowestFlushingRegionSequenceIds}. If,
    * for all regions, the value is lesser than the minimum of values present in the
    * oldestFlushing/UnflushedSeqNums, then the wal file is eligible for archiving.
-   * @param sequenceNums for a HLog, at the time when it was rolled.
+   * @param sequenceNums for a WAL, at the time when it was rolled.
    * @param oldestFlushingMap
    * @param oldestUnflushedMap
    * @return true if wal is eligible for archiving, false otherwise.
@@ -724,7 +721,7 @@ class FSHLog extends AbstractWAL {
         if (i > 0) sb.append(", ");
         sb.append(Bytes.toStringBinary(regions[i]));
       }
-      LOG.info("Too many hlogs: logs=" + logCount + ", maxlogs=" +
+      LOG.info("Too many wals: logs=" + logCount + ", maxlogs=" +
          this.maxLogs + "; forcing flush of " + regions.length + " regions(s): " +
          sb.toString());
     }
@@ -819,7 +816,7 @@ class FSHLog extends AbstractWAL {
       Thread.currentThread().interrupt();
     } catch (IOException e) {
       long count = getUnflushedEntriesCount();
-      LOG.error("Failed close of HLog writer " + oldPath + ", unflushedEntries=" + count, e);
+      LOG.error("Failed close of WAL writer " + oldPath + ", unflushedEntries=" + count, e);
       throw new FailedLogCloseException(oldPath + ", unflushedEntries=" + count, e);
     } finally {
       try {
@@ -847,7 +844,7 @@ class FSHLog extends AbstractWAL {
   }
 
   private void archiveLogFile(final Path p) throws IOException {
-    Path newPath = getHLogArchivePath(this.fullPathOldLogDir, p);
+    Path newPath = getWALArchivePath(this.fullPathOldLogDir, p);
     // Tell our listeners that a log is going to be archived.
     if (!this.listeners.isEmpty()) {
       for (WALActionsListener i : this.listeners) {
@@ -878,19 +875,21 @@ class FSHLog extends AbstractWAL {
 
   /**
    * This is a convenience method that computes a new filename with a given
-   * using the current HLog file-number
+   * using the current WAL file-number
    * @return Path
    */
   @Override
   public Path getCurrentFileName() {
     if (this.filenum.get() < 0) {
-      throw new RuntimeException("hlog file number can't be < 0");
+      throw new RuntimeException("wal file number can't be < 0");
     }
-    String child = logFilePrefix + WAL.WAL_FILE_NAME_DELIMITER + filenum;
-    if (forMeta) {
-      child += WAL.META_HLOG_FILE_EXTN;
-    }
+    String child = logFilePrefix + WAL_FILE_NAME_DELIMITER + filenum + logFileSuffix;
     return new Path(fullPathLogDir, child);
+  }
+
+  @Override
+  public String toString() {
+    return "FSHLog " + logFilePrefix + ":" + logFileSuffix + "(num " + filenum + ")";
   }
 
 /**
@@ -904,14 +903,17 @@ class FSHLog extends AbstractWAL {
   protected long getFileNumFromFileName(Path fileName) {
     if (fileName == null) throw new IllegalArgumentException("file name can't be null");
     // The path should start with dir/<prefix>.
-    String prefixPathStr = new Path(fullPathLogDir, logFilePrefix + WAL.WAL_FILE_NAME_DELIMITER).toString();
-    if (!fileName.toString().startsWith(prefixPathStr)) {
+    final String prefixPathStr = new Path(fullPathLogDir, logFilePrefix + WAL_FILE_NAME_DELIMITER).toString();
+    final String fileNameString = fileName.toString();
+    if (!fileNameString.startsWith(prefixPathStr)) {
       throw new IllegalArgumentException("The log file " + fileName + " doesn't belong to"
           + " this regionserver " + prefixPathStr);
     }
-    String chompedPath = fileName.toString().substring(prefixPathStr.length());
-    if (forMeta) chompedPath = chompedPath.substring(0,
-      chompedPath.indexOf(WAL.META_HLOG_FILE_EXTN));
+    if (!fileNameString.endsWith(logFileSuffix)) {
+      throw new IllegalArgumentException("The log file " + fileName + " doesn't belong to"
+          + " this regionserver; doesn't match suffix " + logFileSuffix);
+    }
+    String chompedPath = fileNameString.substring(prefixPathStr.length(), (fileNameString.length() - logFileSuffix.length()));
     return Long.parseLong(chompedPath);
   }
 
@@ -923,7 +925,7 @@ class FSHLog extends AbstractWAL {
     if (files != null) {
       for(FileStatus file : files) {
 
-        Path p = getHLogArchivePath(this.fullPathOldLogDir, file.getPath());
+        Path p = getWALArchivePath(this.fullPathOldLogDir, file.getPath());
         // Tell our listeners that a log is going to be archived.
         if (!this.listeners.isEmpty()) {
           for (WALActionsListener i : this.listeners) {
@@ -1001,59 +1003,17 @@ class FSHLog extends AbstractWAL {
    * @param clusterIds that have consumed the change
    * @return New log key.
    */
-  protected HLogKey makeKey(byte[] encodedRegionName, TableName tableName, long seqnum,
+  protected WALKey makeKey(byte[] encodedRegionName, TableName tableName, long seqnum,
       long now, List<UUID> clusterIds, long nonceGroup, long nonce) {
-    return new HLogKey(encodedRegionName, tableName, seqnum, now, clusterIds, nonceGroup, nonce);
+    return new WALKey(encodedRegionName, tableName, seqnum, now, clusterIds, nonceGroup, nonce);
   }
   
-  @Override
-  @VisibleForTesting
-  public void append(HRegionInfo info, TableName tableName, WALEdit edits,
-    final long now, HTableDescriptor htd, AtomicLong sequenceId)
-  throws IOException {
-    HLogKey logKey = new HLogKey(info.getEncodedNameAsBytes(), tableName, now);
-    append(htd, info, logKey, edits, sequenceId, true, true, null);
-  }
-
-  @Override
-  public long appendNoSync(final HRegionInfo info, TableName tableName, WALEdit edits,
-      List<UUID> clusterIds, final long now, HTableDescriptor htd, AtomicLong sequenceId,
-      boolean inMemstore, long nonceGroup, long nonce) throws IOException {
-    HLogKey logKey =
-      new HLogKey(info.getEncodedNameAsBytes(), tableName, now, clusterIds, nonceGroup, nonce);
-    return append(htd, info, logKey, edits, sequenceId, false, inMemstore, null);
-  }
-
-  @Override
-  public long appendNoSync(final HTableDescriptor htd, final HRegionInfo info, final HLogKey key,
-      final WALEdit edits, final AtomicLong sequenceId, final boolean inMemstore, 
-      final List<Cell> memstoreCells)
-  throws IOException {
-    return append(htd, info, key, edits, sequenceId, false, inMemstore, memstoreCells);
-  }
-
-  /**
-   * Append a set of edits to the log. Log edits are keyed by (encoded) regionName, rowname, and
-   * log-sequence-id.
-   * @param key
-   * @param edits
-   * @param htd This comes in here just so it is available on a pre append for replications.  Get
-   * rid of it.  It is kinda crazy this comes in here when we have tablename and regioninfo.
-   * Replication gets its scope from the HTD.
-   * @param hri region info
-   * @param sync shall we sync after we call the append?
-   * @param inMemstore
-   * @param sequenceId The region sequence id reference.
-   * @param memstoreCells
-   * @return txid of this transaction or if nothing to do, the last txid
-   * @throws IOException
-   */
   @edu.umd.cs.findbugs.annotations.SuppressWarnings(value="NP_NULL_ON_SOME_PATH_EXCEPTION",
       justification="Will never be null")
-  private long append(HTableDescriptor htd, final HRegionInfo hri, final HLogKey key,
-      WALEdit edits, AtomicLong sequenceId, boolean sync, boolean inMemstore, 
-      List<Cell> memstoreCells)
-  throws IOException {
+  @Override
+  public long append(final HTableDescriptor htd, final HRegionInfo hri, final WALKey key,
+      final WALEdit edits, final AtomicLong sequenceId, final boolean inMemstore, 
+      final List<Cell> memstoreCells) throws IOException {
     if (!this.enabled) return this.highestUnsyncedSequence;
     if (this.closed) throw new IOException("Cannot append; log is closed");
     // Make a trace scope for the append.  It is closed on other side of the ring buffer by the
@@ -1075,9 +1035,6 @@ class FSHLog extends AbstractWAL {
     } finally {
       this.disruptor.getRingBuffer().publish(sequence);
     }
-    // doSync is set in tests.  Usually we arrive in here via appendNoSync w/ the sync called after
-    // all edits on a handler have been added.
-    if (sync) sync(sequence);
     return sequence;
   }
 
@@ -1221,7 +1178,7 @@ class FSHLog extends AbstractWAL {
             Trace.addTimelineAnnotation("writer synced");
             currentSequence = updateHighestSyncedSequence(currentSequence);
           } catch (IOException e) {
-            LOG.error("Error syncing, request close of hlog ", e);
+            LOG.error("Error syncing, request close of wal ", e);
             t = e;
           } catch (Exception e) {
             LOG.warn("UNEXPECTED", e);
@@ -1282,7 +1239,7 @@ class FSHLog extends AbstractWAL {
             LOG.warn("HDFS pipeline error detected. " + "Found "
                 + numCurrentReplicas + " replicas but expecting no less than "
                 + this.minTolerableReplication + " replicas. "
-                + " Requesting close of hlog.");
+                + " Requesting close of wal.");
             logRollNeeded = true;
             // If rollWriter is requested, increase consecutiveLogRolls. Once it
             // is larger than lowReplicationRollLimit, disable the
@@ -1390,7 +1347,7 @@ class FSHLog extends AbstractWAL {
   }
 
   /**
-   * This method gets the datanode replication count for the current HLog.
+   * This method gets the datanode replication count for the current WAL.
    *
    * If the pipeline isn't started yet or is empty, you will get the default
    * replication factor.  Therefore, if this function returns 0, it means you
@@ -1572,7 +1529,7 @@ class FSHLog extends AbstractWAL {
 
     final Path baseDir = FSUtils.getRootDir(conf);
     final Path oldLogDir = new Path(baseDir, HConstants.HREGION_OLDLOGDIR_NAME);
-    HLogSplitter.split(baseDir, p, oldLogDir, fs, conf);
+    WALSplitter.split(baseDir, p, oldLogDir, fs, conf);
   }
 
 
@@ -1826,7 +1783,7 @@ class FSHLog extends AbstractWAL {
 
       long start = EnvironmentEdgeManager.currentTime();
       byte [] encodedRegionName = entry.getKey().getEncodedRegionName();
-      long regionSequenceId = WAL.NO_SEQUENCE_ID;
+      long regionSequenceId = WALKey.NO_SEQUENCE_ID;
       try {
         // We are about to append this edit; update the region-scoped sequence number.  Do it
         // here inside this single appending/writing thread.  Events are ordered on the ringbuffer
@@ -1869,7 +1826,7 @@ class FSHLog extends AbstractWAL {
         // Update metrics.
         postAppend(entry, EnvironmentEdgeManager.currentTime() - start);
       } catch (Exception e) {
-        LOG.fatal("Could not append. Requesting close of hlog", e);
+        LOG.fatal("Could not append. Requesting close of wal", e);
         requestLogRoll();
         throw e;
       }
@@ -1900,7 +1857,7 @@ class FSHLog extends AbstractWAL {
   }
 
   private static void usage() {
-    System.err.println("Usage: HLog <ARGS>");
+    System.err.println("Usage: FSHLog <ARGS>");
     System.err.println("Arguments:");
     System.err.println(" --dump  Dump textual representation of passed one or more files");
     System.err.println("         For example: " +
@@ -1923,9 +1880,9 @@ class FSHLog extends AbstractWAL {
       usage();
       System.exit(-1);
     }
-    // either dump using the HLogPrettyPrinter or split, depending on args
+    // either dump using the WALPrettyPrinter or split, depending on args
     if (args[0].compareTo("--dump") == 0) {
-      HLogPrettyPrinter.run(Arrays.copyOfRange(args, 1, args.length));
+      WALPrettyPrinter.run(Arrays.copyOfRange(args, 1, args.length));
     } else if (args[0].compareTo("--perf") == 0) {
       final int count = Integer.parseInt(args[1]);
       // Put up a WAL and just keep adding same edit to it.  Simple perf test.
@@ -1933,16 +1890,17 @@ class FSHLog extends AbstractWAL {
       Path rootDir = FSUtils.getRootDir(conf);
       FileSystem fs = rootDir.getFileSystem(conf);
       FSHLog wal =
-        new FSHLog(fs, rootDir, "perflog", "oldPerflog", conf, null, false, "perf", false);
+        new FSHLog(fs, rootDir, "perflog", "oldPerflog", conf, null, false, "perf", null);
       long start = System.nanoTime();
       WALEdit walEdit = new WALEdit();
       walEdit.add(new KeyValue(Bytes.toBytes("row"), Bytes.toBytes("family"),
         Bytes.toBytes("qualifier"), -1, new byte [1000]));
       FSTableDescriptors fst = new FSTableDescriptors(conf);
+      final WALKey logkey = new WALKey(HRegionInfo.FIRST_META_REGIONINFO.getEncodedNameAsBytes(),
+          TableName.META_TABLE_NAME, start);
       for (AtomicLong i = new AtomicLong(0); i.get() < count; i.incrementAndGet()) {
-        wal.append(HRegionInfo.FIRST_META_REGIONINFO,
-            TableName.META_TABLE_NAME, walEdit, start,
-          fst.get(TableName.META_TABLE_NAME), i);
+        wal.append(fst.get(TableName.META_TABLE_NAME), HRegionInfo.FIRST_META_REGIONINFO, logkey,
+            walEdit, i, true, null);
         wal.sync();
       }
       wal.close();
@@ -1994,7 +1952,7 @@ class FSHLog extends AbstractWAL {
   }
 
   /**
-   * This method gets the pipeline for the current HLog.
+   * This method gets the pipeline for the current WAL.
    * @return
    */
   DatanodeInfo[] getPipeLine() {

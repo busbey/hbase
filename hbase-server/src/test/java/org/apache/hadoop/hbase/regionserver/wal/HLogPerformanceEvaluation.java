@@ -47,9 +47,9 @@ import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.io.crypto.KeyProviderForTesting;
 import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.trace.SpanReceiverHost;
+import org.apache.hadoop.hbase.regionserver.wal.WALProvider;
+import org.apache.hadoop.hbase.regionserver.wal.WALProvider.Entry;
 import org.apache.hadoop.hbase.regionserver.wal.WAL;
-import org.apache.hadoop.hbase.regionserver.wal.WAL.Entry;
-import org.apache.hadoop.hbase.regionserver.wal.WALService;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.util.Tool;
@@ -65,7 +65,7 @@ import com.yammer.metrics.core.MetricsRegistry;
 import com.yammer.metrics.reporting.ConsoleReporter;
 
 /**
- * This class runs performance benchmarks for {@link WALService}.
+ * This class runs performance benchmarks for {@link WAL}.
  * See usage for this tool by running:
  * <code>$ hbase org.apache.hadoop.hbase.regionserver.wal.HLogPerformanceEvaluation -h</code>
  */
@@ -104,7 +104,7 @@ public final class HLogPerformanceEvaluation extends Configured implements Tool 
   }
 
   /**
-   * Perform HLog.append() of Put object, for the number of iterations requested.
+   * Perform WAL.append() of Put object, for the number of iterations requested.
    * Keys and Vaues are generated randomly, the number of column families,
    * qualifiers and key/value size is tunable by the user.
    */
@@ -150,9 +150,7 @@ public final class HLogPerformanceEvaluation extends Configured implements Tool 
       byte[] key = new byte[keySize];
       byte[] value = new byte[valueSize];
       Random rand = new Random(Thread.currentThread().getId());
-      WALService hlog = region.getLog();
-      ArrayList<UUID> clusters = new ArrayList<UUID>();
-      long nonce = HConstants.NO_NONCE;
+      WAL wal = region.getLog();
 
       TraceScope threadScope =
         Trace.startSpan("HLogPerfEval." + Thread.currentThread().getName());
@@ -168,11 +166,11 @@ public final class HLogPerformanceEvaluation extends Configured implements Tool 
             WALEdit walEdit = new WALEdit();
             addFamilyMapToWALEdit(put.getFamilyCellMap(), walEdit);
             HRegionInfo hri = region.getRegionInfo();
-            hlog.appendNoSync(hri, hri.getTable(), walEdit, clusters, now, htd,
-              region.getSequenceId(), true, nonce, nonce);
+            final WALKey logkey = new WALKey(hri.getEncodedNameAsBytes(), hri.getTable(), now);
+            wal.append(htd, hri, logkey, walEdit, region.getSequenceId(), true, null);
             if (!this.noSync) {
               if (++lastSync >= this.syncInterval) {
-                hlog.sync();
+                wal.sync();
                 lastSync = 0;
               }
             }
@@ -266,14 +264,14 @@ public final class HLogPerformanceEvaluation extends Configured implements Tool 
     }
 
     if (cipher != null) {
-      // Set up HLog for encryption
+      // Set up WAL for encryption
       Configuration conf = getConf();
       conf.set(HConstants.CRYPTO_KEYPROVIDER_CONF_KEY, KeyProviderForTesting.class.getName());
       conf.set(HConstants.CRYPTO_MASTERKEY_NAME_CONF_KEY, "hbase");
       conf.setClass("hbase.regionserver.hlog.reader.impl", SecureProtobufLogReader.class,
-        WAL.Reader.class);
+        WALProvider.Reader.class);
       conf.setClass("hbase.regionserver.hlog.writer.impl", SecureProtobufLogWriter.class,
-        WAL.Writer.class);
+        WALProvider.Writer.class);
       conf.setBoolean(HConstants.ENABLE_WAL_ENCRYPTION, true);
       conf.set(HConstants.CRYPTO_WAL_ALGORITHM_CONF_KEY, cipher);
     }
@@ -282,7 +280,7 @@ public final class HLogPerformanceEvaluation extends Configured implements Tool 
     // In regionserver, number of handlers == number of threads.
     getConf().setInt(HConstants.REGION_SERVER_HANDLER_COUNT, numThreads);
 
-    // Run HLog Performance Evaluation
+    // Run WAL Performance Evaluation
     // First set the fs from configs.  In case we are on hadoop1
     FSUtils.setFsDefault(getConf(), FSUtils.getRootDir(getConf()));
     FileSystem fs = FileSystem.get(getConf());
@@ -300,7 +298,7 @@ public final class HLogPerformanceEvaluation extends Configured implements Tool 
       // Initialize Table Descriptor
       HTableDescriptor htd = createHTableDescriptor(numFamilies);
       final long whenToRoll = roll;
-      final WALService hlog = new FSHLog(fs, rootRegionDir, "wals", getConf()) {
+      final WAL wal = new FSHLog(fs, rootRegionDir, "wals", getConf()) {
 
         @Override
         public void postSync(final long timeInNanos, final int handlerSyncs) {
@@ -311,17 +309,17 @@ public final class HLogPerformanceEvaluation extends Configured implements Tool 
         }
 
         @Override
-        public long postAppend(final WAL.Entry entry, final long elapsedTime) {
+        public long postAppend(final WALProvider.Entry entry, final long elapsedTime) {
           long size = super.postAppend(entry, elapsedTime);
           appendMeter.mark(size);
           return size;
         }
       };
-      hlog.registerWALActionsListener(new WALActionsListener() {
+      wal.registerWALActionsListener(new WALActionsListener() {
         private int appends = 0;
 
         @Override
-        public void visitLogEntryBeforeWrite(HTableDescriptor htd, HLogKey logKey,
+        public void visitLogEntryBeforeWrite(HTableDescriptor htd, WALKey logKey,
             WALEdit logEdit) {
           this.appends++;
           if (this.appends % whenToRoll == 0) {
@@ -329,12 +327,12 @@ public final class HLogPerformanceEvaluation extends Configured implements Tool 
             // We used to do explicit call to rollWriter but changed it to a request
             // to avoid dead lock (there are less threads going on in this class than
             // in the regionserver -- regionserver does not have the issue).
-            ((FSHLog)hlog).requestLogRoll();
+            ((FSHLog)wal).requestLogRoll();
           }
         }
 
         @Override
-        public void visitLogEntryBeforeWrite(HRegionInfo info, HLogKey logKey, WALEdit logEdit) {
+        public void visitLogEntryBeforeWrite(HRegionInfo info, WALKey logKey, WALEdit logEdit) {
         }
 
         @Override
@@ -361,11 +359,11 @@ public final class HLogPerformanceEvaluation extends Configured implements Tool 
         public void logCloseRequested() {
         }
       });
-      hlog.rollWriter();
+      wal.rollWriter();
       HRegion region = null;
 
       try {
-        region = openRegion(fs, rootRegionDir, htd, hlog);
+        region = openRegion(fs, rootRegionDir, htd, wal);
         ConsoleReporter.enable(this.metrics, 30, TimeUnit.SECONDS);
         long putTime =
           runBenchmark(Trace.wrap(
@@ -379,7 +377,7 @@ public final class HLogPerformanceEvaluation extends Configured implements Tool 
           region = null;
         }
         if (verify) {
-          Path dir = ((FSHLog) hlog).getDir();
+          Path dir = ((FSHLog) wal).getDir();
           long editCount = 0;
           FileStatus [] fsss = fs.listStatus(dir);
           if (fsss.length == 0) throw new IllegalStateException("No WAL found");
@@ -425,7 +423,7 @@ public final class HLogPerformanceEvaluation extends Configured implements Tool 
    * @throws IOException
    */
   private long verify(final Path wal, final boolean verbose) throws IOException {
-    WAL.Reader reader = HLogFactory.createReader(wal.getFileSystem(getConf()), wal, getConf());
+    WALProvider.Reader reader = WALFactory.createReader(wal.getFileSystem(getConf()), wal, getConf());
     long count = 0;
     Map<String, Long> sequenceIds = new HashMap<String, Long>();
     try {
@@ -497,16 +495,16 @@ public final class HLogPerformanceEvaluation extends Configured implements Tool 
   }
 
   private HRegion openRegion(final FileSystem fs, final Path dir, final HTableDescriptor htd,
-      final WALService hlog) throws IOException {
+      final WAL wal) throws IOException {
     // Initialize HRegion
     HRegionInfo regionInfo = new HRegionInfo(htd.getTableName());
-    return HRegion.createHRegion(regionInfo, dir, getConf(), htd, hlog);
+    return HRegion.createHRegion(regionInfo, dir, getConf(), htd, wal);
   }
 
   private void closeRegion(final HRegion region) throws IOException {
     if (region != null) {
       region.close();
-      WALService wal = region.getLog();
+      WAL wal = region.getLog();
       if (wal != null) wal.close();
     }
   }

@@ -123,9 +123,9 @@ import org.apache.hadoop.hbase.quotas.RegionServerQuotaManager;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionProgress;
 import org.apache.hadoop.hbase.regionserver.handler.CloseMetaHandler;
 import org.apache.hadoop.hbase.regionserver.handler.CloseRegionHandler;
-import org.apache.hadoop.hbase.regionserver.wal.WALService;
-import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
-import org.apache.hadoop.hbase.regionserver.wal.HLogUtil;
+import org.apache.hadoop.hbase.regionserver.wal.AbstractWAL;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
+import org.apache.hadoop.hbase.regionserver.wal.WALFactory;
 import org.apache.hadoop.hbase.regionserver.wal.WALActionsListener;
 import org.apache.hadoop.hbase.security.UserProvider;
 import org.apache.hadoop.hbase.trace.SpanReceiverHost;
@@ -329,15 +329,15 @@ public class HRegionServer extends HasThread implements
    */
   Chore periodicFlusher;
 
-  // HLog and HLog roller. log is protected rather than private to avoid
+  // WAL roller. log is protected rather than private to avoid
   // eclipse warning when accessed by inner classes
-  protected volatile WALService hlog;
-  // The meta updates are written to a different hlog. If this
+  protected volatile WAL wal;
+  // The meta updates are written to a different wal. If this
   // regionserver holds meta regions, then this field will be non-null.
-  protected volatile WALService hlogForMeta;
+  protected volatile WAL walForMeta;
 
-  LogRoller hlogRoller;
-  LogRoller metaHLogRoller;
+  LogRoller walRoller;
+  LogRoller metawalRoller;
 
   // flag set after we're done setting up server threads
   final AtomicBoolean online = new AtomicBoolean(false);
@@ -1094,7 +1094,7 @@ public class HRegionServer extends HasThread implements
     serverLoad.setTotalNumberOfRequests((int) regionServerWrapper.getTotalRequestCount());
     serverLoad.setUsedHeapMB((int)(memory.getUsed() / 1024 / 1024));
     serverLoad.setMaxHeapMB((int) (memory.getMax() / 1024 / 1024));
-    Set<String> coprocessors = this.hlog.getCoprocessorHost().getCoprocessors();
+    Set<String> coprocessors = this.wal.getCoprocessorHost().getCoprocessors();
     for (String coprocessor : coprocessors) {
       serverLoad.addCoprocessors(
         Coprocessor.newBuilder().setName(coprocessor).build());
@@ -1192,24 +1192,24 @@ public class HRegionServer extends HasThread implements
   }
 
   private void closeWAL(final boolean delete) {
-    if (this.hlogForMeta != null) {
-      // All hlogs (meta and non-meta) are in the same directory. Don't call
-      // closeAndDelete here since that would delete all hlogs not just the
-      // meta ones. We will just 'close' the hlog for meta here, and leave
+    if (this.walForMeta != null) {
+      // All wals (meta and non-meta) are in the same directory. Don't call
+      // closeAndDelete here since that would delete all wals not just the
+      // meta ones. We will just 'close' the wal for meta here, and leave
       // the directory cleanup to the follow-on closeAndDelete call.
       try {
-        this.hlogForMeta.close();
+        this.walForMeta.close();
       } catch (Throwable e) {
         e = e instanceof RemoteException ? ((RemoteException) e).unwrapRemoteException() : e;
         LOG.error("Metalog close and delete failed", e);
       }
     }
-    if (this.hlog != null) {
+    if (this.wal != null) {
       try {
         if (delete) {
-          hlog.closeAndDelete();
+          wal.closeAndDelete();
         } else {
-          hlog.close();
+          wal.close();
         }
       } catch (Throwable e) {
         e = e instanceof RemoteException ? ((RemoteException) e).unwrapRemoteException() : e;
@@ -1219,7 +1219,7 @@ public class HRegionServer extends HasThread implements
   }
 
   /*
-   * Run init. Sets up hlog and starts up all server threads.
+   * Run init. Sets up wal and starts up all server threads.
    *
    * @param c Extra configuration.
    */
@@ -1257,7 +1257,7 @@ public class HRegionServer extends HasThread implements
       ZNodeClearer.writeMyEphemeralNodeOnDisk(getMyEphemeralNodePath());
 
       this.cacheConfig = new CacheConfig(conf);
-      this.hlog = setupWALAndReplication();
+      this.wal = setupWALAndReplication();
       // Init in here rather than in constructor after thread name has been set
       this.metricsRegionServer = new MetricsRegionServer(new MetricsRegionServerWrapperImpl(this));
 
@@ -1498,10 +1498,10 @@ public class HRegionServer extends HasThread implements
    * @return A WAL instance.
    * @throws IOException
    */
-  private WALService setupWALAndReplication() throws IOException {
+  private WAL setupWALAndReplication() throws IOException {
     final Path oldLogDir = new Path(rootDir, HConstants.HREGION_OLDLOGDIR_NAME);
     final String logName
-      = HLogUtil.getHLogDirectoryName(this.serverName.toString());
+      = AbstractWAL.getWALDirectoryName(this.serverName.toString());
 
     Path logdir = new Path(rootDir, logName);
     if (LOG.isDebugEnabled()) LOG.debug("logdir=" + logdir);
@@ -1514,17 +1514,17 @@ public class HRegionServer extends HasThread implements
     // log directories.
     createNewReplicationInstance(conf, this, this.fs, logdir, oldLogDir);
 
-    return instantiateHLog(rootDir, logName);
+    return instantiateWAL(rootDir, logName);
   }
 
-  private WALService getMetaWAL() throws IOException {
-    if (this.hlogForMeta != null) return this.hlogForMeta;
-    final String logName = HLogUtil.getHLogDirectoryName(this.serverName.toString());
+  private WAL getMetaWAL() throws IOException {
+    if (this.walForMeta != null) return this.walForMeta;
+    final String logName = AbstractWAL.getWALDirectoryName(this.serverName.toString());
     Path logdir = new Path(rootDir, logName);
     if (LOG.isDebugEnabled()) LOG.debug("logdir=" + logdir);
-    this.hlogForMeta = HLogFactory.createMetaHLog(this.fs.getBackingFs(), rootDir, logName,
+    this.walForMeta = WALFactory.createMetaWAL(this.fs.getBackingFs(), rootDir, logName,
       this.conf, getMetaWALActionListeners(), this.serverName.toString());
-    return this.hlogForMeta;
+    return this.walForMeta;
   }
 
   /**
@@ -1534,13 +1534,13 @@ public class HRegionServer extends HasThread implements
    * @return WAL instance.
    * @throws IOException
    */
-  protected WALService instantiateHLog(Path rootdir, String logName) throws IOException {
-    return HLogFactory.createHLog(this.fs.getBackingFs(), rootdir, logName, this.conf,
+  protected WAL instantiateWAL(Path rootdir, String logName) throws IOException {
+    return WALFactory.createWAL(this.fs.getBackingFs(), rootdir, logName, this.conf,
       getWALActionListeners(), this.serverName.toString());
   }
 
   /**
-   * Called by {@link #instantiateHLog(Path, String)} setting up WAL instance.
+   * Called by {@link #instantiateWAL(Path, String)} setting up WAL instance.
    * Add any {@link WALActionsListener}s you want inserted before WAL startup.
    * @return List of WALActionsListener that will be passed in to
    * {@link org.apache.hadoop.hbase.regionserver.wal.AbstractWAL} on construction.
@@ -1548,8 +1548,8 @@ public class HRegionServer extends HasThread implements
   protected List<WALActionsListener> getWALActionListeners() {
     List<WALActionsListener> listeners = new ArrayList<WALActionsListener>();
     // Log roller.
-    this.hlogRoller = new LogRoller(this, this);
-    listeners.add(this.hlogRoller);
+    this.walRoller = new LogRoller(this, this);
+    listeners.add(this.walRoller);
     if (this.replicationSourceHandler != null &&
         this.replicationSourceHandler.getWALActionsListener() != null) {
       // Replication handler is an implementation of WALActionsListener.
@@ -1566,14 +1566,14 @@ public class HRegionServer extends HasThread implements
     String n = Thread.currentThread().getName();
     Threads.setDaemonThreadRunning(tmpLogRoller.getThread(),
         n + "-MetaLogRoller", uncaughtExceptionHandler);
-    this.metaHLogRoller = tmpLogRoller;
+    this.metawalRoller = tmpLogRoller;
     tmpLogRoller = null;
-    listeners.add(this.metaHLogRoller);
+    listeners.add(this.metawalRoller);
     return listeners;
   }
 
   protected LogRoller getLogRoller() {
-    return hlogRoller;
+    return walRoller;
   }
 
   public MetricsRegionServer getRegionServerMetrics() {
@@ -1616,7 +1616,7 @@ public class HRegionServer extends HasThread implements
     this.service.startExecutorService(ExecutorType.RS_LOG_REPLAY_OPS, conf.getInt(
        "hbase.regionserver.wal.max.splitters", SplitLogWorkerCoordination.DEFAULT_MAX_SPLITTERS));
 
-    Threads.setDaemonThreadRunning(this.hlogRoller.getThread(), getName() + ".logRoller",
+    Threads.setDaemonThreadRunning(this.walRoller.getThread(), getName() + ".logRoller",
         uncaughtExceptionHandler);
     this.cacheFlusher.start(uncaughtExceptionHandler);
     Threads.setDaemonThreadRunning(this.compactionChecker.getThread(), getName() +
@@ -1726,20 +1726,20 @@ public class HRegionServer extends HasThread implements
     }
     // Verify that all threads are alive
     if (!(leases.isAlive()
-        && cacheFlusher.isAlive() && hlogRoller.isAlive()
+        && cacheFlusher.isAlive() && walRoller.isAlive()
         && this.compactionChecker.isAlive()
         && this.periodicFlusher.isAlive())) {
       stop("One or more threads are no longer alive -- stop");
       return false;
     }
-    if (metaHLogRoller != null && !metaHLogRoller.isAlive()) {
-      stop("Meta HLog roller thread is no longer alive -- stop");
+    if (metawalRoller != null && !metawalRoller.isAlive()) {
+      stop("Meta WAL roller thread is no longer alive -- stop");
       return false;
     }
     return true;
   }
 
-  public WALService getWAL() {
+  public WAL getWAL() {
     try {
       return getWAL(null);
     } catch (IOException e) {
@@ -1749,15 +1749,15 @@ public class HRegionServer extends HasThread implements
   }
 
   @Override
-  public WALService getWAL(HRegionInfo regionInfo) throws IOException {
-    //TODO: at some point this should delegate to the HLogFactory
+  public WAL getWAL(HRegionInfo regionInfo) throws IOException {
+    //TODO: at some point this should delegate to the WALFactory
     //currently, we don't care about the region as much as we care about the
     //table.. (hence checking the tablename below)
     //_ROOT_ and hbase:meta regions have separate WAL.
     if (regionInfo != null && regionInfo.isMetaTable()) {
       return getMetaWAL();
     }
-    return this.hlog;
+    return this.wal;
   }
 
   @Override
@@ -2002,11 +2002,11 @@ public class HRegionServer extends HasThread implements
     if (this.spanReceiverHost != null) {
       this.spanReceiverHost.closeReceivers();
     }
-    if (this.hlogRoller != null) {
-      Threads.shutdown(this.hlogRoller.getThread());
+    if (this.walRoller != null) {
+      Threads.shutdown(this.walRoller.getThread());
     }
-    if (this.metaHLogRoller != null) {
-      Threads.shutdown(this.metaHLogRoller.getThread());
+    if (this.metawalRoller != null) {
+      Threads.shutdown(this.metawalRoller.getThread());
     }
     if (this.compactSplitThread != null) {
       this.compactSplitThread.join();
@@ -2566,7 +2566,7 @@ public class HRegionServer extends HasThread implements
   // used by org/apache/hbase/tmpl/regionserver/RSStatusTmpl.jamon (HBASE-4070).
   public String[] getRegionServerCoprocessors() {
     TreeSet<String> coprocessors = new TreeSet<String>(
-        this.hlog.getCoprocessorHost().getCoprocessors());
+        this.wal.getCoprocessorHost().getCoprocessors());
     Collection<HRegion> regions = getOnlineRegionsLocalContext();
     for (HRegion region: regions) {
       coprocessors.addAll(region.getCoprocessorHost().getCoprocessors());
@@ -2692,7 +2692,7 @@ public class HRegionServer extends HasThread implements
     HRegion toReturn = this.onlineRegions.remove(r.getRegionInfo().getEncodedName());
 
     if (destination != null) {
-      WALService wal = getWAL();
+      WAL wal = getWAL();
       long closeSeqNum = wal.getEarliestMemstoreSeqNum(r.getRegionInfo().getEncodedNameAsBytes());
       if (closeSeqNum == HConstants.NO_SEQNUM) {
         // No edits in WAL for this region; get the sequence number when the region was opened.

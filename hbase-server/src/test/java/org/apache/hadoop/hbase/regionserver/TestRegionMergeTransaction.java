@@ -43,8 +43,8 @@ import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Durability;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Scan;
-import org.apache.hadoop.hbase.regionserver.wal.WALService;
-import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
+import org.apache.hadoop.hbase.regionserver.wal.WALFactory;
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
 import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -69,7 +69,7 @@ public class TestRegionMergeTransaction {
   private HRegion region_a;
   private HRegion region_b;
   private HRegion region_c;
-  private WALService wal;
+  private WAL wal;
   private FileSystem fs;
   // Start rows of region_a,region_b,region_c
   private static final byte[] STARTROW_A = new byte[] { 'a', 'a', 'a' };
@@ -82,7 +82,7 @@ public class TestRegionMergeTransaction {
   public void setup() throws IOException {
     this.fs = FileSystem.get(TEST_UTIL.getConfiguration());
     this.fs.delete(this.testdir, true);
-    this.wal = HLogFactory.createHLog(fs, this.testdir, "logs",
+    this.wal = WALFactory.createWAL(fs, this.testdir, "logs",
         TEST_UTIL.getConfiguration());
     this.region_a = createRegion(this.testdir, this.wal, STARTROW_A, STARTROW_B);
     this.region_b = createRegion(this.testdir, this.wal, STARTROW_B, STARTROW_C);
@@ -401,7 +401,7 @@ public class TestRegionMergeTransaction {
   private class MockedFailedMergedRegionOpen extends IOException {
   }
 
-  private HRegion createRegion(final Path testdir, final WALService wal,
+  private HRegion createRegion(final Path testdir, final WAL wal,
       final byte[] startrow, final byte[] endrow)
       throws IOException {
     // Make a region with start and end keys.

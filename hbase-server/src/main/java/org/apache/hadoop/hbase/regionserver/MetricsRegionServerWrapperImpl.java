@@ -33,7 +33,7 @@ import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.io.hfile.BlockCache;
 import org.apache.hadoop.hbase.io.hfile.CacheConfig;
 import org.apache.hadoop.hbase.io.hfile.CacheStats;
-import org.apache.hadoop.hbase.regionserver.wal.WAL;
+import org.apache.hadoop.hbase.regionserver.wal.WALProvider;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
@@ -54,8 +54,8 @@ class MetricsRegionServerWrapperImpl
   private BlockCache blockCache;
 
   private volatile long numStores = 0;
-  private volatile long numHLogFiles = 0;
-  private volatile long hlogFileSize = 0;
+  private volatile long numWALFiles = 0;
+  private volatile long walFileSize = 0;
   private volatile long numStoreFiles = 0;
   private volatile long memstoreSize = 0;
   private volatile long storeFileSize = 0;
@@ -287,13 +287,13 @@ class MetricsRegionServerWrapperImpl
   }
   
   @Override
-  public long getNumHLogFiles() {
-    return numHLogFiles;
+  public long getNumWALFiles() {
+    return numWALFiles;
   }
 
   @Override
-  public long getHLogFileSize() {
-    return hlogFileSize;
+  public long getWALFileSize() {
+    return walFileSize;
   }
   
   @Override
@@ -493,18 +493,18 @@ class MetricsRegionServerWrapperImpl
 
       //Copy over computed values so that no thread sees half computed values.
       numStores = tempNumStores;
-      long tempNumHLogFiles = ((WAL)regionServer.hlog).getNumLogFiles();
+      long tempNumWALFiles = ((WALProvider)regionServer.wal).getNumLogFiles();
       // meta logs
-      if (regionServer.hlogForMeta != null) {
-        tempNumHLogFiles += ((WAL)regionServer.hlogForMeta).getNumLogFiles();
+      if (regionServer.walForMeta != null) {
+        tempNumWALFiles += ((WALProvider)regionServer.walForMeta).getNumLogFiles();
       }
-      numHLogFiles = tempNumHLogFiles;
+      numWALFiles = tempNumWALFiles;
       
-      long tempHlogFileSize = ((WAL)regionServer.hlog).getLogFileSize();
-      if (regionServer.hlogForMeta != null) {
-        tempHlogFileSize += ((WAL)regionServer.hlogForMeta).getLogFileSize();
+      long tempWALFileSize = ((WALProvider)regionServer.wal).getLogFileSize();
+      if (regionServer.walForMeta != null) {
+        tempWALFileSize += ((WALProvider)regionServer.walForMeta).getLogFileSize();
       }
-      hlogFileSize = tempHlogFileSize;
+      walFileSize = tempWALFileSize;
       
       numStoreFiles = tempNumStoreFiles;
       memstoreSize = tempMemstoreSize;

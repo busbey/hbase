@@ -76,8 +76,7 @@ import org.apache.hadoop.hbase.protobuf.generated.RegionServerStatusProtos.Regio
 import org.apache.hadoop.hbase.protobuf.generated.RegionServerStatusProtos.RegionStateTransition.TransitionCode;
 import org.apache.hadoop.hbase.regionserver.RegionOpeningState;
 import org.apache.hadoop.hbase.regionserver.RegionServerStoppedException;
-import org.apache.hadoop.hbase.regionserver.wal.WAL;
-import org.apache.hadoop.hbase.regionserver.wal.HLogUtil;
+import org.apache.hadoop.hbase.regionserver.wal.AbstractWAL;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.hbase.util.KeyLocker;
@@ -472,8 +471,8 @@ public class AssignmentManager {
         Path rootdir = FSUtils.getRootDir(conf);
         FileSystem fs = rootdir.getFileSystem(conf);
         for (ServerName serverName: queuedDeadServers) {
-          Path logDir = new Path(rootdir, HLogUtil.getHLogDirectoryName(serverName.toString()));
-          Path splitDir = logDir.suffix(WAL.SPLITTING_EXT);
+          Path logDir = new Path(rootdir, AbstractWAL.getWALDirectoryName(serverName.toString()));
+          Path splitDir = logDir.suffix(AbstractWAL.SPLITTING_EXT);
           if (fs.exists(logDir) || fs.exists(splitDir)) {
             LOG.debug("Found queued dead server " + serverName);
             failover = true;

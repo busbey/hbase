@@ -27,34 +27,34 @@ import org.apache.hadoop.fs.Path;
  * This class makes available methods that are package protected.
  *  This is interesting for test only.
  */
-public class HLogUtilsForTests {
+public class WALUtilsForTests {
 
   /**
    * 
    * @param log
    * @return
    */
-  public static int getNumRolledLogFiles(WALService log) {
+  public static int getNumRolledLogFiles(WAL log) {
     return ((AbstractWAL) log).getNumRolledLogFiles();
   }
 
-  public static int getNumEntries(WALService log) {
+  public static int getNumEntries(WAL log) {
     return ((AbstractWAL) log).getNumEntries();
   }
 
   /**
    * A WAL file name is of the format: 
-   * <server-name>{@link WAL#WAL_FILE_NAME_DELIMITER}<file-creation-timestamp>[.meta].
+   * <server-name>{@link AbstractWAL#WAL_FILE_NAME_DELIMITER}<file-creation-timestamp>[.meta].
    * It returns the file create timestamp from the file name.
    * @return the file number that is part of the WAL file name
    */
-  public static long extractFileNumFromPath(Path hlogName) {
-    if (hlogName == null) throw new IllegalArgumentException("The HLog path couldn't be null");
+  public static long extractFileNumFromPath(Path walName) {
+    if (walName == null) throw new IllegalArgumentException("The WAL path couldn't be null");
     String[] walPathStrs = null;
-    String hlogPath = hlogName.toString();
+    String walPath = walName.toString();
     // if it is a meta wal file, it would have a -meta prefix at the end.
-    boolean metaWAL = (hlogPath.endsWith(WAL.META_HLOG_FILE_EXTN)) ? true : false;
-    walPathStrs = hlogPath.split("\\" + WAL.WAL_FILE_NAME_DELIMITER);
+    boolean metaWAL = (walPath.endsWith(AbstractWAL.META_WAL_FILE_EXTN)) ? true : false;
+    walPathStrs = walPath.split("\\" + AbstractWAL.WAL_FILE_NAME_DELIMITER);
     if (metaWAL) return Long.parseLong(walPathStrs[walPathStrs.length - 2]);
     return Long.parseLong(walPathStrs[walPathStrs.length - 1]);
   }

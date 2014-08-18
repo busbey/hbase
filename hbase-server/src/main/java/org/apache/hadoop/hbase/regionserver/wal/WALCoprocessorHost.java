@@ -30,8 +30,7 @@ import org.apache.hadoop.conf.Configuration;
 
 /**
  * Implements the coprocessor environment and runtime support for coprocessors
- * loaded within a {@link AbstractWAL}.
- * TODO: There was FSHLog instance here? Shouldn't be it a WALService?
+ * loaded within a {@link WAL}.
  */
 @InterfaceAudience.Private
 public class WALCoprocessorHost
@@ -43,10 +42,10 @@ public class WALCoprocessorHost
   static class WALEnvironment extends CoprocessorHost.Environment
     implements WALCoprocessorEnvironment {
 
-    private AbstractWAL wal;
+    private final WAL wal;
 
     @Override
-    public AbstractWAL getWAL() {
+    public WAL getWAL() {
       return wal;
     }
 
@@ -57,23 +56,24 @@ public class WALCoprocessorHost
      * @param priority chaining priority
      * @param seq load sequence
      * @param conf configuration
-     * @param hlog HLog
+     * @param wal WAL
      */
     public WALEnvironment(Class<?> implClass, final Coprocessor impl,
         final int priority, final int seq, final Configuration conf,
-        final AbstractWAL hlog) {
+        final WAL wal) {
       super(impl, priority, seq, conf);
-      this.wal = hlog;
+      this.wal = wal;
     }
   }
 
-  AbstractWAL wal;
+  private final WAL wal;
+
   /**
    * Constructor
    * @param log the write ahead log
    * @param conf the configuration
    */
-  public WALCoprocessorHost(final AbstractWAL log, final Configuration conf) {
+  public WALCoprocessorHost(final WAL log, final Configuration conf) {
     // We don't want to require an Abortable passed down through (FS)HLog, so
     // this means that a failure to load of a WAL coprocessor won't abort the
     // server. This isn't ideal, and means that security components that
@@ -101,7 +101,7 @@ public class WALCoprocessorHost
    * @return true if default behavior should be bypassed, false otherwise
    * @throws IOException
    */
-  public boolean preWALWrite(final HRegionInfo info, final HLogKey logKey, final WALEdit logEdit)
+  public boolean preWALWrite(final HRegionInfo info, final WALKey logKey, final WALEdit logEdit)
       throws IOException {
     boolean bypass = false;
     if (this.coprocessors == null || this.coprocessors.isEmpty()) return bypass;
@@ -136,7 +136,7 @@ public class WALCoprocessorHost
    * @param logEdit
    * @throws IOException
    */
-  public void postWALWrite(final HRegionInfo info, final HLogKey logKey, final WALEdit logEdit)
+  public void postWALWrite(final HRegionInfo info, final WALKey logKey, final WALEdit logEdit)
       throws IOException {
     if (this.coprocessors == null || this.coprocessors.isEmpty()) return;
     ObserverContext<WALCoprocessorEnvironment> ctx = null;

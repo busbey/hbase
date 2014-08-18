@@ -53,7 +53,7 @@ import org.apache.hadoop.hbase.regionserver.Store;
 import org.apache.hadoop.hbase.regionserver.StoreFile;
 import org.apache.hadoop.hbase.regionserver.StoreFile.Reader;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionRequest;
-import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
+import org.apache.hadoop.hbase.regionserver.wal.WALKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 import org.apache.hadoop.hbase.util.Pair;
 
@@ -446,12 +446,12 @@ public abstract class BaseRegionObserver implements RegionObserver {
 
   @Override
   public void preWALRestore(ObserverContext<RegionCoprocessorEnvironment> env, HRegionInfo info,
-      HLogKey logKey, WALEdit logEdit) throws IOException {
+      WALKey logKey, WALEdit logEdit) throws IOException {
   }
 
   @Override
   public void postWALRestore(ObserverContext<RegionCoprocessorEnvironment> env,
-      HRegionInfo info, HLogKey logKey, WALEdit logEdit) throws IOException {
+      HRegionInfo info, WALKey logKey, WALEdit logEdit) throws IOException {
   }
 
   @Override

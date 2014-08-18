@@ -83,7 +83,7 @@ public class TestLogRolling  {
   private static final Log LOG = LogFactory.getLog(TestLogRolling.class);
   private HRegionServer server;
   /**
-   * This class invokes APIs that are present both in WALService and WAL. Having a AbstractWAL
+   * This class invokes APIs that are present both in WAL and WALProvider. Having a AbstractWAL
    * reference helps in avoiding type casting each time when a WAL obtained from a RegionServer
    * invokes any WAL API.
    */
@@ -207,7 +207,7 @@ public class TestLogRolling  {
   public void testLogRollOnNothingWritten() throws Exception {
     Configuration conf = TEST_UTIL.getConfiguration();
     HFileSystem fs = new HFileSystem(conf, false);
-    WALService newLog = HLogFactory.createHLog(fs.getBackingFs(),
+    WAL newLog = WALFactory.createWAL(fs.getBackingFs(),
       FSUtils.getRootDir(conf), "test", conf, null, "test.com:8080:1");
     try {
       // Now roll the log before we write anything.
@@ -303,7 +303,7 @@ public class TestLogRolling  {
   /**
    * Give me the HDFS pipeline for this log file
    */
-  DatanodeInfo[] getPipeline(WALService log) throws IllegalArgumentException,
+  DatanodeInfo[] getPipeline(WAL log) throws IllegalArgumentException,
       IllegalAccessException, InvocationTargetException {
     OutputStream stm = ((AbstractWAL) log).getOutputStream();
     Method getPipeline = null;
@@ -329,7 +329,7 @@ public class TestLogRolling  {
   @Test
   public void testLogRollOnDatanodeDeath() throws Exception {
     TEST_UTIL.ensureSomeRegionServersAvailable(2);
-    assertTrue("This test requires HLog file replication set to 2.",
+    assertTrue("This test requires WAL file replication set to 2.",
       fs.getDefaultReplication(TEST_UTIL.getDataTestDirOnTestFS()) == 2);
     LOG.info("Replication=" +
       fs.getDefaultReplication(TEST_UTIL.getDataTestDirOnTestFS()));
@@ -377,12 +377,12 @@ public class TestLogRolling  {
 
     long curTime = System.currentTimeMillis();
     LOG.info("log.getCurrentFileName(): " + log.getCurrentFileName());
-    long oldFilenum = HLogUtilsForTests.extractFileNumFromPath(log.getCurrentFileName());
+    long oldFilenum = WALUtilsForTests.extractFileNumFromPath(log.getCurrentFileName());
     assertTrue("Log should have a timestamp older than now",
         curTime > oldFilenum && oldFilenum != -1);
 
     assertTrue("The log shouldn't have rolled yet",
-      oldFilenum == HLogUtilsForTests.extractFileNumFromPath(log.getCurrentFileName()));
+      oldFilenum == WALUtilsForTests.extractFileNumFromPath(log.getCurrentFileName()));
     final DatanodeInfo[] pipeline = getPipeline(log);
     assertTrue(pipeline.length ==
         fs.getDefaultReplication(TEST_UTIL.getDataTestDirOnTestFS()));
@@ -393,7 +393,7 @@ public class TestLogRolling  {
 
     // this write should succeed, but trigger a log roll
     writeData(table, 2);
-    long newFilenum = HLogUtilsForTests.extractFileNumFromPath(log.getCurrentFileName());
+    long newFilenum = WALUtilsForTests.extractFileNumFromPath(log.getCurrentFileName());
 
     assertTrue("Missing datanode should've triggered a log roll",
         newFilenum > oldFilenum && newFilenum > curTime);
@@ -401,7 +401,7 @@ public class TestLogRolling  {
     // write some more log data (this should use a new hdfs_out)
     writeData(table, 3);
     assertTrue("The log should not roll again.",
-      HLogUtilsForTests.extractFileNumFromPath(log.getCurrentFileName()) == newFilenum);
+      WALUtilsForTests.extractFileNumFromPath(log.getCurrentFileName()) == newFilenum);
     // kill another datanode in the pipeline, so the replicas will be lower than
     // the configured value 2.
     assertTrue(dfsCluster.stopDataNode(pipeline[1].getName()) != null);
@@ -452,14 +452,14 @@ public class TestLogRolling  {
     return 0;
   }
   /**
-   * Test that HLog is rolled when all data nodes in the pipeline have been
+   * Test that WAL is rolled when all data nodes in the pipeline have been
    * restarted.
    * @throws Exception
    */
   @Test
   public void testLogRollOnPipelineRestart() throws Exception {
     LOG.info("Starting testLogRollOnPipelineRestart");
-    assertTrue("This test requires HLog file replication.",
+    assertTrue("This test requires WAL file replication.",
       fs.getDefaultReplication(TEST_UTIL.getDataTestDirOnTestFS()) > 1);
     LOG.info("Replication=" +
       fs.getDefaultReplication(TEST_UTIL.getDataTestDirOnTestFS()));
@@ -500,10 +500,10 @@ public class TestLogRolling  {
         @Override
         public void logCloseRequested() {}
         @Override
-        public void visitLogEntryBeforeWrite(HRegionInfo info, HLogKey logKey,
+        public void visitLogEntryBeforeWrite(HRegionInfo info, WALKey logKey,
             WALEdit logEdit) {}
         @Override
-        public void visitLogEntryBeforeWrite(HTableDescriptor htd, HLogKey logKey,
+        public void visitLogEntryBeforeWrite(HTableDescriptor htd, WALKey logKey,
             WALEdit logEdit) {}
       });
 
@@ -517,12 +517,12 @@ public class TestLogRolling  {
 
       long curTime = System.currentTimeMillis();
       LOG.info("log.getCurrentFileName()): " + log.getCurrentFileName());
-      long oldFilenum = HLogUtilsForTests.extractFileNumFromPath(log.getCurrentFileName());
+      long oldFilenum = WALUtilsForTests.extractFileNumFromPath(log.getCurrentFileName());
       assertTrue("Log should have a timestamp older than now",
           curTime > oldFilenum && oldFilenum != -1);
 
       assertTrue("The log shouldn't have rolled yet", oldFilenum ==
-          HLogUtilsForTests.extractFileNumFromPath(log.getCurrentFileName()));
+          WALUtilsForTests.extractFileNumFromPath(log.getCurrentFileName()));
 
       // roll all datanodes in the pipeline
       dfsCluster.restartDataNodes();
@@ -533,7 +533,7 @@ public class TestLogRolling  {
 
       // this write should succeed, but trigger a log roll
       writeData(table, 1003);
-      long newFilenum = HLogUtilsForTests.extractFileNumFromPath(log.getCurrentFileName());
+      long newFilenum = WALUtilsForTests.extractFileNumFromPath(log.getCurrentFileName());
 
       assertTrue("Missing datanode should've triggered a log roll",
           newFilenum > oldFilenum && newFilenum > curTime);
@@ -564,12 +564,12 @@ public class TestLogRolling  {
         fsUtils.recoverFileLease(((HFileSystem)fs).getBackingFs(), p,
           TEST_UTIL.getConfiguration(), null);
 
-        LOG.debug("Reading HLog "+FSUtils.getPath(p));
-        WAL.Reader reader = null;
+        LOG.debug("Reading WAL "+FSUtils.getPath(p));
+        WALProvider.Reader reader = null;
         try {
-          reader = HLogFactory.createReader(fs, p,
+          reader = WALFactory.createReader(fs, p,
               TEST_UTIL.getConfiguration());
-          WAL.Entry entry;
+          WALProvider.Entry entry;
           while ((entry = reader.next()) != null) {
             LOG.debug("#"+entry.getKey().getLogSeqNum()+": "+entry.getEdit().getCells());
             for (Cell cell : entry.getEdit().getCells()) {

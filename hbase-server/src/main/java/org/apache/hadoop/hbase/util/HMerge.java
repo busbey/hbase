@@ -47,8 +47,8 @@ import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.regionserver.HRegion;
-import org.apache.hadoop.hbase.regionserver.wal.WALService;
-import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
+import org.apache.hadoop.hbase.regionserver.wal.WALFactory;
 import org.apache.hadoop.ipc.RemoteException;
 
 /**
@@ -143,7 +143,7 @@ class HMerge {
     protected final FileSystem fs;
     protected final Path rootDir;
     protected final HTableDescriptor htd;
-    protected final WALService hlog;
+    protected final WAL wal;
     private final long maxFilesize;
 
 
@@ -160,7 +160,7 @@ class HMerge {
           .getHTableDescriptor();
       String logname = "merge_" + System.currentTimeMillis() + HConstants.HREGION_LOGDIR_NAME;
 
-      this.hlog = HLogFactory.createHLog(fs, tabledir, logname, conf);
+      this.wal = WALFactory.createWAL(fs, tabledir, logname, conf);
     }
 
     void process() throws IOException {
@@ -174,7 +174,7 @@ class HMerge {
         }
       } finally {
         try {
-          hlog.closeAndDelete();
+          wal.closeAndDelete();
 
         } catch(IOException e) {
           LOG.error(e);
@@ -194,10 +194,10 @@ class HMerge {
       long nextSize = 0;
       for (int i = 0; i < info.length - 1; i++) {
         if (currentRegion == null) {
-          currentRegion = HRegion.openHRegion(conf, fs, this.rootDir, info[i], this.htd, hlog);
+          currentRegion = HRegion.openHRegion(conf, fs, this.rootDir, info[i], this.htd, wal);
           currentSize = currentRegion.getLargestHStoreSize();
         }
-        nextRegion = HRegion.openHRegion(conf, fs, this.rootDir, info[i + 1], this.htd, hlog);
+        nextRegion = HRegion.openHRegion(conf, fs, this.rootDir, info[i + 1], this.htd, wal);
         nextSize = nextRegion.getLargestHStoreSize();
 
         if ((currentSize + nextSize) <= (maxFilesize / 2)) {

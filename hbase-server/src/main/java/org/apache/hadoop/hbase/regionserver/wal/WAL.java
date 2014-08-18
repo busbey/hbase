@@ -16,214 +16,181 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.hadoop.hbase.regionserver.wal;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.List;
-import java.util.regex.Pattern;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
+import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.classification.InterfaceAudience;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataInputStream;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALTrailer;
-import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.HRegionInfo;
+import org.apache.hadoop.hbase.HTableDescriptor;
+import org.apache.hadoop.hbase.TableName;
+
+import com.google.common.annotations.VisibleForTesting;
 
 /**
- * The Write Ahead Log (WAL) stores all the edits to the HStore.
- * This interface provides APIs, reader and writer abstractions for all WAL implementors.
- * <p>
- * A WAL file is rolled once it reaches a HDFS block size.
- * See {@link FSHLog} for an example implementation.
+ * A Write Ahead Log (WAL) provides service for reading, writing waledits. This interface provides
+ * APIs for WAL users (such as RegionServer) to use the WAL (do append, sync, etc).
  */
 @InterfaceAudience.Private
+@InterfaceStability.Evolving
 public interface WAL {
 
-  interface Reader{
-    /**
-     * @param fs File system.
-     * @param path Path.
-     * @param c Configuration.
-     * @param s Input stream that may have been pre-opened by the caller; may be null.
-     */
-    void init(FileSystem fs, Path path, Configuration c, FSDataInputStream s) throws IOException;
-
-    void close() throws IOException;
-
-    Entry next() throws IOException;
-
-    Entry next(Entry reuse) throws IOException;
-
-    void seek(long pos) throws IOException;
-
-    long getPosition() throws IOException;
-    void reset() throws IOException;
-
-    /**
-     * @return the WALTrailer of the current HLog. It may be null in case of legacy or corrupt WAL
-     *         files.
-     */
-    // TODO: What we need a trailer on WAL for?
-    WALTrailer getWALTrailer();
-  }
-
-  interface Writer {
-    void init(FileSystem fs, Path path, Configuration c, boolean overwritable) throws IOException;
-
-    void close() throws IOException;
-
-    void sync() throws IOException;
-
-    void append(Entry entry) throws IOException;
-
-    long getLength() throws IOException;
-
-    /**
-     * Sets HLog's WALTrailer. This trailer is appended at the end of WAL on closing.
-     * @param walTrailer trailer to append to WAL.
-     */
-    void setWALTrailer(WALTrailer walTrailer);
-  }
+  /**
+   * Registers WALActionsListener
+   *
+   * @param listener
+   */
+  void registerWALActionsListener(final WALActionsListener listener);
 
   /**
-   * Configuration name of HLog Trailer's warning size. If a waltrailer's size is greater than the
-   * configured size, a warning is logged. This is used with Protobuf reader/writer.
+   * Unregisters WALActionsListener
+   *
+   * @param listener
    */
-  public static final String WAL_TRAILER_WARN_SIZE = "hbase.regionserver.waltrailer.warn.size";
-  public static final int DEFAULT_WAL_TRAILER_WARN_SIZE = 1024 * 1024; // 1MB
-  public static final Pattern EDITFILES_NAME_PATTERN = Pattern.compile("-?[0-9]+");
-  public static final String RECOVERED_LOG_TMPFILE_SUFFIX = ".temp";
-  public static final String SEQUENCE_ID_FILE_SUFFIX = "_seqid";
-  public static final String WAL_FILE_NAME_DELIMITER = ".";
-  /** File Extension used while splitting an HLog into regions (HBASE-2312) */
-  public static final String SPLITTING_EXT = "-splitting";
-  public static final boolean SPLIT_SKIP_ERRORS_DEFAULT = false;
-  /** The hbase:meta region's HLog filename extension */
-  public static final String META_HLOG_FILE_EXTN = ".meta";
-  public static final long NO_SEQUENCE_ID = -1;
+  boolean unregisterWALActionsListener(final WALActionsListener listener);
 
   /**
-   * @return the total number of WAL files (including rolled WALs).
+   * Roll the log writer. That is, start writing log messages to a new file.
+   *
+   * <p>
+   * The implementation is synchronized in order to make sure there's one rollWriter
+   * running at any given time.
+   *
+   * @return If lots of logs, flush the returned regions so next time through we
+   *         can clean logs. Returns null if nothing to flush. Names are actual
+   *         region names as returned by {@link HRegionInfo#getEncodedName()}
+   * @throws org.apache.hadoop.hbase.regionserver.wal.FailedLogCloseException
+   * @throws IOException
    */
-  int getNumLogFiles();
+  byte[][] rollWriter() throws FailedLogCloseException, IOException;
 
   /**
-   * returns the number of rolled WAL files.
+   * Roll the log writer. That is, start writing log messages to a new file.
+   *
+   * <p>
+   * The implementation is synchronized in order to make sure there's one rollWriter
+   * running at any given time.
+   *
+   * @param force
+   *          If true, force creation of a new writer even if no entries have
+   *          been written to the current writer
+   * @return If lots of logs, flush the returned regions so next time through we
+   *         can clean logs. Returns null if nothing to flush. Names are actual
+   *         region names as returned by {@link HRegionInfo#getEncodedName()}
+   * @throws org.apache.hadoop.hbase.regionserver.wal.FailedLogCloseException
+   * @throws IOException
    */
-  int getNumRolledLogFiles();
+  byte[][] rollWriter(boolean force) throws FailedLogCloseException, IOException;
 
   /**
-   * @return the path of the current WAL file.
+   * Shut down the log.
+   *
+   * @throws IOException
    */
-  Path getCurrentFileName();
+  void close() throws IOException;
 
   /**
-   * @return the current size of all HLog files (including rolled files).
+   * Shut down the log and delete the log directory.
+   * Used by tests only and in rare cases where we need a log just temporarily while bootstrapping
+   * a region or running migrations.
+   *
+   * @throws IOException
    */
-  long getLogFileSize();
+  void closeAndDelete() throws IOException;
 
   /**
-   * For notification post append to the writer.  Used by metrics system at least.
-   * @param entry
-   * @param elapsedTime
-   * @return Size of this append.
+   * Append a set of edits to the WAL. The WAL is not flushed/sync'd after this transaction
+   * completes BUT on return this edit must have its region edit/sequence id assigned
+   * else it messes up our unification of mvcc and sequenceid.  On return <code>key</code> will
+   * have the region edit/sequence id filled in.
+   * @param info
+   * @param key Modified by this call; we add to it this edits region edit/sequence id.
+   * @param edits Edits to append. MAY CONTAIN NO EDITS for case where we want to get an edit
+   * sequence id that is after all currently appended edits.
+   * @param htd used to give scope for replication TODO refactor out in favor of table name and info
+   * @param sequenceId A reference to the atomic long the <code>info</code> region is using as
+   * source of its incrementing edits sequence id.  Inside in this call we will increment it and
+   * attach the sequence to the edit we apply the WAL.
+   * @param inMemstore Always true except for case where we are writing a compaction completion
+   * record into the WAL; in this case the entry is just so we can finish an unfinished compaction
+   * -- it is not an edit for memstore.
+   * @param memstoreKVs list of KVs added into memstore
+   * @return Returns a 'transaction id' and <code>key</code> will have the region edit/sequence id
+   * in it.
+   * @throws IOException
    */
-  long postAppend(final Entry entry, final long elapsedTime);
+  long append(HTableDescriptor htd, HRegionInfo info, WALKey key, WALEdit edits,
+      AtomicLong sequenceId, boolean inMemstore, List<Cell> memstoreKVs)
+  throws IOException;
 
   /**
-   * For notification post writer sync.  Used by metrics system at least.
-   * @param timeInMillis How long the filesystem sync took in milliseconds.
-   * @param handlerSyncs How many sync handler calls were released by this call to filesystem
-   * sync.
+   * Sync what we have in the WAL.
+   * @throws IOException
    */
-  void postSync(final long timeInMillis, final int handlerSyncs);
+  void sync() throws IOException;
 
   /**
-   * @return the number of entries in the current WAL file
+   * Sync the WAL if the txId was not already sync'd.
+   * @param txid Transaction id to sync to.
+   * @throws IOException
    */
-  int getNumEntries();
+  void sync(long txid) throws IOException;
 
   /**
-   * Get LowReplication-Roller status
-   * @return lowReplicationRollEnabled
+   * WAL keeps track of the sequence numbers that were not yet flushed from memstores
+   * in order to be able to do cleanup. This method tells WAL that some region is about
+   * to flush memstore.
+   *
+   * <p>We stash the oldest seqNum for the region, and let the the next edit inserted in this
+   * region be recorded in {@link #append(HTableDescriptor, HRegionInfo, WALKey, WALEdit,
+   * AtomicLong, boolean, List<Cell>)} as new oldest seqnum.
+   * In case of flush being aborted, we put the stashed value back; in case of flush succeeding,
+   * the seqNum of that first edit after start becomes the valid oldest seqNum for this region.
+   *
+   * @return true if the flush can proceed, false in case wal is closing (ususally, when server is
+   * closing) and flush couldn't be started.
    */
-  boolean isLowReplicationRollEnabled();
+  boolean startCacheFlush(final byte[] encodedRegionName);
 
   /**
-   * Utility class that lets us keep track of the edit with it's key.
-   * Only used when splitting logs.
+   * Complete the cache flush.
+   * @param encodedRegionName Encoded region name.
    */
-  // TODO: Remove this Writable.
-  class Entry implements Writable {
-    private WALEdit edit;
-    private HLogKey key;
+  void completeCacheFlush(final byte[] encodedRegionName);
 
-    public Entry() {
-      edit = new WALEdit();
-      key = new HLogKey();
-    }
+  /**
+   * Abort a cache flush. Call if the flush fails. Note that the only recovery
+   * for an aborted flush currently is a restart of the regionserver so the
+   * snapshot content dropped by the failure gets restored to the memstore.v
+   * @param encodedRegionName Encoded region name.
+   */
+  void abortCacheFlush(byte[] encodedRegionName);
 
-    /**
-     * Constructor for both params
-     *
-     * @param edit log's edit
-     * @param key log's key
-     */
-    public Entry(HLogKey key, WALEdit edit) {
-      super();
-      this.key = key;
-      this.edit = edit;
-    }
+  /**
+   * @return Coprocessor host.
+   */
+  WALCoprocessorHost getCoprocessorHost();
 
-    /**
-     * Gets the edit
-     *
-     * @return edit
-     */
-    public WALEdit getEdit() {
-      return edit;
-    }
 
-    /**
-     * Gets the key
-     *
-     * @return key
-     */
-    public HLogKey getKey() {
-      return key;
-    }
+  /** Gets the earliest sequence number in the memstore for this particular region.
+   * This can serve as best-effort "recent" WAL number for this region.
+   * @param encodedRegionName The region to get the number for.
+   * @return The number if present, HConstants.NO_SEQNUM if absent.
+   */
+  long getEarliestMemstoreSeqNum(byte[] encodedRegionName);
 
-    /**
-     * Set compression context for this entry.
-     *
-     * @param compressionContext
-     *          Compression context
-     */
-    public void setCompressionContext(CompressionContext compressionContext) {
-      edit.setCompressionContext(compressionContext);
-      key.setCompressionContext(compressionContext);
-    }
-
-    @Override
-    public String toString() {
-      return this.key + "=" + this.edit;
-    }
-
-    @Override
-    @SuppressWarnings("deprecation")
-    public void write(DataOutput dataOutput) throws IOException {
-      this.key.write(dataOutput);
-      this.edit.write(dataOutput);
-    }
-
-    @Override
-    public void readFields(DataInput dataInput) throws IOException {
-      this.key.readFields(dataInput);
-      this.edit.readFields(dataInput);
-    }
-  }
-
+  /**
+   * Human readable identifying information about the state of this WAL.
+   * Implementors are encouraged to include information appropriate for debugging.
+   * Consumers are advised not to rely on the details of the returned String; it does
+   * not have a defined structure.
+   */
+  @Override
+  String toString();
 }

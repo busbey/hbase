@@ -55,7 +55,7 @@ import org.apache.hadoop.hbase.regionserver.Store;
 import org.apache.hadoop.hbase.regionserver.StoreFile;
 import org.apache.hadoop.hbase.regionserver.StoreFileScanner;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionRequest;
-import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
+import org.apache.hadoop.hbase.regionserver.wal.WALKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 import org.apache.hadoop.hbase.util.Pair;
 
@@ -1113,7 +1113,7 @@ public interface RegionObserver extends Coprocessor {
    * @throws IOException
    */
   void preWALRestore(final ObserverContext<RegionCoprocessorEnvironment> ctx,
-      HRegionInfo info, HLogKey logKey, WALEdit logEdit) throws IOException;
+      HRegionInfo info, WALKey logKey, WALEdit logEdit) throws IOException;
 
   /**
    * Called after a {@link org.apache.hadoop.hbase.regionserver.wal.WALEdit}
@@ -1126,7 +1126,7 @@ public interface RegionObserver extends Coprocessor {
    * @throws IOException
    */
   void postWALRestore(final ObserverContext<RegionCoprocessorEnvironment> ctx,
-      HRegionInfo info, HLogKey logKey, WALEdit logEdit) throws IOException;
+      HRegionInfo info, WALKey logKey, WALEdit logEdit) throws IOException;
 
   /**
    * Called before bulkLoadHFile. Users can create a StoreFile instance to

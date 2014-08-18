@@ -35,7 +35,7 @@ import org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALTrailer;
 import org.apache.hadoop.hbase.util.FSUtils;
 
 @InterfaceAudience.LimitedPrivate({HBaseInterfaceAudience.COPROC, HBaseInterfaceAudience.PHOENIX})
-public abstract class ReaderBase implements WAL.Reader {
+public abstract class ReaderBase implements WALProvider.Reader {
   private static final Log LOG = LogFactory.getLog(ReaderBase.class);
   protected Configuration conf;
   protected FileSystem fs;
@@ -65,8 +65,8 @@ public abstract class ReaderBase implements WAL.Reader {
     this.path = path;
     this.fs = fs;
     this.fileLength = this.fs.getFileStatus(path).getLen();
-    this.trailerWarnSize = conf.getInt(WAL.WAL_TRAILER_WARN_SIZE,
-      WAL.DEFAULT_WAL_TRAILER_WARN_SIZE);
+    this.trailerWarnSize = conf.getInt(WALProvider.WAL_TRAILER_WARN_SIZE,
+      WALProvider.DEFAULT_WAL_TRAILER_WARN_SIZE);
     String cellCodecClsName = initReader(stream);
 
     boolean compression = hasCompression();
@@ -87,15 +87,15 @@ public abstract class ReaderBase implements WAL.Reader {
   }
 
   @Override
-  public WAL.Entry next() throws IOException {
+  public WALProvider.Entry next() throws IOException {
     return next(null);
   }
 
   @Override
-  public WAL.Entry next(WAL.Entry reuse) throws IOException {
-    WAL.Entry e = reuse;
+  public WALProvider.Entry next(WALProvider.Entry reuse) throws IOException {
+    WALProvider.Entry e = reuse;
     if (e == null) {
-      e = new WAL.Entry(new HLogKey(), new WALEdit());
+      e = new WALProvider.Entry(new WALKey(), new WALEdit());
     }
     if (compressionContext != null) {
       e.setCompressionContext(compressionContext);
@@ -165,7 +165,7 @@ public abstract class ReaderBase implements WAL.Reader {
    * @param e The entry to read into.
    * @return Whether there was anything to read.
    */
-  protected abstract boolean readNext(WAL.Entry e) throws IOException;
+  protected abstract boolean readNext(WALProvider.Entry e) throws IOException;
 
   /**
    * Performs a filesystem-level seek to a certain position in an underlying file.

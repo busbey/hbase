@@ -35,8 +35,8 @@ import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.regionserver.HRegion;
-import org.apache.hadoop.hbase.regionserver.wal.WALService;
-import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
+import org.apache.hadoop.hbase.regionserver.wal.WALFactory;
 
 /**
  * Contains utility methods for manipulating HBase meta tables.
@@ -51,7 +51,7 @@ public class MetaUtils {
   private final Configuration conf;
   private final FSTableDescriptors descriptors;
   private FileSystem fs;
-  private WALService log;
+  private WAL log;
   private HRegion metaRegion;
   private Map<byte [], HRegion> metaRegions = Collections.synchronizedSortedMap(
     new TreeMap<byte [], HRegion>(Bytes.BYTES_COMPARATOR));
@@ -84,14 +84,14 @@ public class MetaUtils {
   }
 
   /**
-   * @return the HLog
+   * @return the WAL
    * @throws IOException e
    */
-  public synchronized WALService getLog() throws IOException {
+  public synchronized WAL getLog() throws IOException {
     if (this.log == null) {
       String logName = 
           HConstants.HREGION_LOGDIR_NAME + "_" + System.currentTimeMillis();
-      this.log = HLogFactory.createHLog(this.fs, this.fs.getHomeDirectory(),
+      this.log = WALFactory.createWAL(this.fs, this.fs.getHomeDirectory(),
                                         logName, this.conf);
     }
     return this.log;
@@ -109,7 +109,7 @@ public class MetaUtils {
   }
 
   /**
-   * Closes catalog regions if open. Also closes and deletes the HLog. You
+   * Closes catalog regions if open. Also closes and deletes the WAL. You
    * must call this method if you want to persist changes made during a
    * MetaUtils edit session.
    */
@@ -139,7 +139,7 @@ public class MetaUtils {
         this.log.closeAndDelete();
       }
     } catch (IOException e) {
-      LOG.error("closing HLog", e);
+      LOG.error("closing WAL", e);
     } finally {
       this.log = null;
     }

@@ -31,8 +31,8 @@ import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.Server;
 import org.apache.hadoop.hbase.regionserver.wal.FailedLogCloseException;
-import org.apache.hadoop.hbase.regionserver.wal.WALService;
-import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
+import org.apache.hadoop.hbase.regionserver.wal.WALKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALActionsListener;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -40,7 +40,7 @@ import org.apache.hadoop.hbase.util.HasThread;
 import org.apache.hadoop.ipc.RemoteException;
 
 /**
- * Runs periodically to determine if the HLog should be rolled.
+ * Runs periodically to determine if the WAL should be rolled.
  *
  * NOTE: This class extends Thread rather than Chore because the sleep time
  * can be interrupted when there is something to do, rather than the Chore
@@ -88,10 +88,10 @@ class LogRoller extends HasThread implements WALActionsListener {
         }
         // Time for periodic roll
         if (LOG.isDebugEnabled()) {
-          LOG.debug("Hlog roll period " + this.rollperiod + "ms elapsed");
+          LOG.debug("Wal roll period " + this.rollperiod + "ms elapsed");
         }
       } else if (LOG.isDebugEnabled()) {
-        LOG.debug("HLog roll requested");
+        LOG.debug("WAL roll requested");
       }
       rollLock.lock(); // FindBugs UL_UNRELEASED_LOCK_EXCEPTION_PATH
       try {
@@ -152,7 +152,7 @@ class LogRoller extends HasThread implements WALActionsListener {
     }
   }
 
-  protected WALService getWAL() throws IOException {
+  protected WAL getWAL() throws IOException {
     return this.services.getWAL(null);
   }
 
@@ -177,13 +177,13 @@ class LogRoller extends HasThread implements WALActionsListener {
   }
 
   @Override
-  public void visitLogEntryBeforeWrite(HRegionInfo info, HLogKey logKey,
+  public void visitLogEntryBeforeWrite(HRegionInfo info, WALKey logKey,
       WALEdit logEdit) {
     // Not interested.
   }
 
   @Override
-  public void visitLogEntryBeforeWrite(HTableDescriptor htd, HLogKey logKey,
+  public void visitLogEntryBeforeWrite(HTableDescriptor htd, WALKey logKey,
                                        WALEdit logEdit) {
     //Not interested
   }

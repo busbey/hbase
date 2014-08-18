@@ -46,7 +46,7 @@ import org.apache.hadoop.hbase.client.Durability;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
-import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
+import org.apache.hadoop.hbase.regionserver.wal.WALFactory;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.hbase.util.StoppableImplementation;
@@ -101,7 +101,7 @@ public class TestStoreFileRefresherChore {
     HRegionInfo info = new HRegionInfo(htd.getTableName(), startKey, stopKey, false, 0, replicaId);
 
     HRegionFileSystem fs = new FailingHRegionFileSystem(conf, tableDir.getFileSystem(conf), tableDir, info);
-    HRegion region = new HRegion(fs, HLogFactory.createHLog(fs.getFileSystem(),
+    HRegion region = new HRegion(fs, WALFactory.createWAL(fs.getFileSystem(),
       tableDir, "log_" + replicaId, conf), conf, htd, null);
 
     region.initialize();

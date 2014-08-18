@@ -55,8 +55,8 @@ import org.junit.experimental.categories.Category;
  * Test that verifies WAL written by SecureProtobufLogWriter is not readable by ProtobufLogReader
  */
 @Category({RegionServerTests.class, MediumTests.class})
-public class TestHLogReaderOnSecureHLog {
-  static final Log LOG = LogFactory.getLog(TestHLogReaderOnSecureHLog.class);
+public class TestWALReaderOnSecureWAL {
+  static final Log LOG = LogFactory.getLog(TestWALReaderOnSecureWAL.class);
   static {
     ((Log4JLogger)LogFactory.getLog("org.apache.hadoop.hbase.regionserver.wal"))
       .getLogger().setLevel(Level.ALL);
@@ -100,8 +100,10 @@ public class TestHLogReaderOnSecureHLog {
     for (int i = 0; i < total; i++) {
       WALEdit kvs = new WALEdit();
       kvs.add(new KeyValue(row, family, Bytes.toBytes(i), value));
-      wal.append(regioninfo, tableName, kvs, System.currentTimeMillis(), htd, sequenceId);
+      wal.append(htd, regioninfo, new WALKey(regioninfo.getEncodedNameAsBytes(), tableName,
+          System.currentTimeMillis()), kvs, sequenceId, true, null);
     }
+    wal.sync();
     final Path walPath = wal.getCurrentFileName();
     wal.close();
     // restore the cell codec class
@@ -111,16 +113,16 @@ public class TestHLogReaderOnSecureHLog {
   }
   
   @Test()
-  public void testHLogReaderOnSecureHLog() throws Exception {
+  public void testWALReaderOnSecureWAL() throws Exception {
     Configuration conf = TEST_UTIL.getConfiguration();
-    HLogFactory.resetLogReaderClass();
-    HLogFactory.resetLogWriterClass();
+    WALFactory.resetLogReaderClass();
+    WALFactory.resetLogWriterClass();
     conf.setClass("hbase.regionserver.hlog.reader.impl", ProtobufLogReader.class,
-      WAL.Reader.class);
+      WALProvider.Reader.class);
     conf.setClass("hbase.regionserver.hlog.writer.impl", SecureProtobufLogWriter.class,
-      WAL.Writer.class);
+      WALProvider.Writer.class);
     FileSystem fs = TEST_UTIL.getTestFileSystem();
-    Path walPath = writeWAL("testHLogReaderOnSecureHLog", true);
+    Path walPath = writeWAL("testWALReaderOnSecureWAL", true);
 
     // Insure edits are not plaintext
     long length = fs.getFileStatus(walPath).getLen();
@@ -132,7 +134,7 @@ public class TestHLogReaderOnSecureHLog {
 
     // Confirm the WAL cannot be read back by ProtobufLogReader
     try {
-      WAL.Reader reader = HLogFactory.createReader(TEST_UTIL.getTestFileSystem(), walPath, conf);
+      WALProvider.Reader reader = WALFactory.createReader(TEST_UTIL.getTestFileSystem(), walPath, conf);
       assertFalse(true);
     } catch (IOException ioe) {
       // expected IOE
@@ -143,7 +145,7 @@ public class TestHLogReaderOnSecureHLog {
         RecoveryMode.LOG_REPLAY : RecoveryMode.LOG_SPLITTING);
     Path rootdir = FSUtils.getRootDir(conf);
     try {
-      HLogSplitter s = new HLogSplitter(conf, rootdir, fs, null, null, mode);
+      WALSplitter s = new WALSplitter(conf, rootdir, fs, null, null, mode);
       s.splitLogFile(listStatus[0], null);
       Path file = new Path(ZKSplitLog.getSplitLogDir(rootdir, listStatus[0].getPath().getName()),
         "corrupt");
@@ -155,16 +157,16 @@ public class TestHLogReaderOnSecureHLog {
   }
   
   @Test()
-  public void testSecureHLogReaderOnHLog() throws Exception {
+  public void testSecureWALReaderOnWAL() throws Exception {
     Configuration conf = TEST_UTIL.getConfiguration();
-    HLogFactory.resetLogReaderClass();
-    HLogFactory.resetLogWriterClass();
+    WALFactory.resetLogReaderClass();
+    WALFactory.resetLogWriterClass();
     conf.setClass("hbase.regionserver.hlog.reader.impl", SecureProtobufLogReader.class,
-      WAL.Reader.class);
+      WALProvider.Reader.class);
     conf.setClass("hbase.regionserver.hlog.writer.impl", ProtobufLogWriter.class,
-      WAL.Writer.class);
+      WALProvider.Writer.class);
     FileSystem fs = TEST_UTIL.getTestFileSystem();
-    Path walPath = writeWAL("testSecureHLogReaderOnHLog", false);
+    Path walPath = writeWAL("testSecureWALReaderOnWAL", false);
 
     // Ensure edits are plaintext
     long length = fs.getFileStatus(walPath).getLen();
@@ -176,7 +178,7 @@ public class TestHLogReaderOnSecureHLog {
 
     // Confirm the WAL can be read back by SecureProtobufLogReader
     try {
-      WAL.Reader reader = HLogFactory.createReader(TEST_UTIL.getTestFileSystem(), walPath, conf);
+      WALProvider.Reader reader = WALFactory.createReader(TEST_UTIL.getTestFileSystem(), walPath, conf);
     } catch (IOException ioe) {
       assertFalse(true);
     }
@@ -186,7 +188,7 @@ public class TestHLogReaderOnSecureHLog {
         RecoveryMode.LOG_REPLAY : RecoveryMode.LOG_SPLITTING);
     Path rootdir = FSUtils.getRootDir(conf);
     try {
-      HLogSplitter s = new HLogSplitter(conf, rootdir, fs, null, null, mode);
+      WALSplitter s = new WALSplitter(conf, rootdir, fs, null, null, mode);
       s.splitLogFile(listStatus[0], null);
       Path file = new Path(ZKSplitLog.getSplitLogDir(rootdir, listStatus[0].getPath().getName()),
         "corrupt");

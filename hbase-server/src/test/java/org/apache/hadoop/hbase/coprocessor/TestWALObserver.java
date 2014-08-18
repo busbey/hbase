@@ -48,11 +48,12 @@ import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.regionserver.HRegion;
-import org.apache.hadoop.hbase.regionserver.wal.WALService;
-import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
-import org.apache.hadoop.hbase.regionserver.wal.HLogSplitter;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
 import org.apache.hadoop.hbase.regionserver.wal.WALCoprocessorHost;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
+import org.apache.hadoop.hbase.regionserver.wal.WALFactory;
+import org.apache.hadoop.hbase.regionserver.wal.WALKey;
+import org.apache.hadoop.hbase.regionserver.wal.WALSplitter;
 import org.apache.hadoop.hbase.security.User;
 import org.apache.hadoop.hbase.testclassification.CoprocessorTests;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
@@ -155,7 +156,7 @@ public class TestWALObserver {
     fs.mkdirs(new Path(basedir, hri.getEncodedName()));
     final AtomicLong sequenceId = new AtomicLong(0);
 
-    WALService log = HLogFactory.createHLog(this.fs, hbaseRootDir,
+    WAL log = WALFactory.createWAL(this.fs, hbaseRootDir,
         TestWALObserver.class.getName(), this.conf);
     SampleRegionWALObserver cp = getCoprocessor(log);
 
@@ -202,7 +203,9 @@ public class TestWALObserver {
 
     // it's where WAL write cp should occur.
     long now = EnvironmentEdgeManager.currentTime();
-    log.append(hri, hri.getTable(), edit, now, htd, sequenceId);
+    long txid = log.append(htd, hri, new WALKey(hri.getEncodedNameAsBytes(), hri.getTable(), now),
+        edit, sequenceId, true, null);
+    log.sync(txid);
 
     // the edit shall have been change now by the coprocessor.
     foundFamily0 = false;
@@ -252,8 +255,8 @@ public class TestWALObserver {
 
     final Configuration newConf = HBaseConfiguration.create(this.conf);
 
-    // HLog wal = new HLog(this.fs, this.dir, this.oldLogDir, this.conf);
-    WALService wal = createWAL(this.conf);
+    // WAL wal = new WAL(this.fs, this.dir, this.oldLogDir, this.conf);
+    WAL wal = createWAL(this.conf);
     // Put p = creatPutWith2Families(TEST_ROW);
     WALEdit edit = new WALEdit();
     long now = EnvironmentEdgeManager.currentTime();
@@ -266,7 +269,8 @@ public class TestWALObserver {
       addWALEdits(tableName, hri, TEST_ROW, hcd.getName(), countPerFamily,
           EnvironmentEdgeManager.getDelegate(), wal, htd, sequenceId);
     }
-    wal.append(hri, tableName, edit, now, htd, sequenceId);
+    wal.append(htd, hri, new WALKey(hri.getEncodedNameAsBytes(), tableName, now), edit, sequenceId,
+        true, null);
     // sync to fs.
     wal.sync();
 
@@ -278,7 +282,7 @@ public class TestWALObserver {
         LOG.info("WALSplit path == " + p);
         FileSystem newFS = FileSystem.get(newConf);
         // Make a new wal for new region open.
-        WALService wal2 = createWAL(newConf);
+        WAL wal2 = createWAL(newConf);
         HRegion region = HRegion.openHRegion(newConf, FileSystem.get(newConf), hbaseRootDir,
             hri, htd, wal2, TEST_UTIL.getHBaseCluster().getRegionServer(0), null);
         long seqid2 = region.getOpenSeqNum();
@@ -300,16 +304,16 @@ public class TestWALObserver {
   /**
    * Test to see CP loaded successfully or not. There is a duplication at
    * TestHLog, but the purpose of that one is to see whether the loaded CP will
-   * impact existing HLog tests or not.
+   * impact existing WAL tests or not.
    */
   @Test
   public void testWALObserverLoaded() throws Exception {
-    WALService log = HLogFactory.createHLog(fs, hbaseRootDir,
+    WAL log = WALFactory.createWAL(fs, hbaseRootDir,
         TestWALObserver.class.getName(), conf);
     assertNotNull(getCoprocessor(log));
   }
 
-  private SampleRegionWALObserver getCoprocessor(WALService wal) throws Exception {
+  private SampleRegionWALObserver getCoprocessor(WAL wal) throws Exception {
     WALCoprocessorHost host = wal.getCoprocessorHost();
     Coprocessor c = host.findCoprocessor(SampleRegionWALObserver.class
         .getName());
@@ -370,7 +374,7 @@ public class TestWALObserver {
   }
 
   private Path runWALSplit(final Configuration c) throws IOException {
-    List<Path> splits = HLogSplitter.split(
+    List<Path> splits = WALSplitter.split(
       hbaseRootDir, logDir, oldLogDir, FileSystem.get(c), c);
     // Split should generate only 1 file since there's only 1 region
     assertEquals(1, splits.size());
@@ -380,20 +384,25 @@ public class TestWALObserver {
     return splits.get(0);
   }
 
-  private WALService createWAL(final Configuration c) throws IOException {
-    return HLogFactory.createHLog(FileSystem.get(c), hbaseRootDir, logName, c);
+  private WAL createWAL(final Configuration c) throws IOException {
+    return WALFactory.createWAL(FileSystem.get(c), hbaseRootDir, logName, c);
   }
 
   private void addWALEdits(final TableName tableName, final HRegionInfo hri, final byte[] rowName,
-      final byte[] family, final int count, EnvironmentEdge ee, final WALService wal,
+      final byte[] family, final int count, EnvironmentEdge ee, final WAL wal,
       final HTableDescriptor htd, final AtomicLong sequenceId) throws IOException {
     String familyStr = Bytes.toString(family);
+    long txid = -1;
     for (int j = 0; j < count; j++) {
       byte[] qualifierBytes = Bytes.toBytes(Integer.toString(j));
       byte[] columnBytes = Bytes.toBytes(familyStr + ":" + Integer.toString(j));
       WALEdit edit = new WALEdit();
       edit.add(new KeyValue(rowName, family, qualifierBytes, ee.currentTime(), columnBytes));
-      wal.append(hri, tableName, edit, ee.currentTime(), htd, sequenceId);
+      txid = wal.append(htd, hri, new WALKey(hri.getEncodedNameAsBytes(), tableName,
+          ee.currentTime()), edit, sequenceId, true, null);
+    }
+    if (-1 != txid) {
+      wal.sync(txid);
     }
   }
 

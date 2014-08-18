@@ -31,9 +31,9 @@ import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
-import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
-import org.apache.hadoop.hbase.regionserver.wal.WAL;
+import org.apache.hadoop.hbase.regionserver.wal.WALProvider;
+import org.apache.hadoop.hbase.regionserver.wal.WALFactory;
+import org.apache.hadoop.hbase.regionserver.wal.WALKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.testclassification.ReplicationTests;
@@ -80,23 +80,23 @@ public class TestReplicationSource {
     Path logPath = new Path(logDir, "log");
     if (!FS.exists(logDir)) FS.mkdirs(logDir);
     if (!FS.exists(oldLogDir)) FS.mkdirs(oldLogDir);
-    WAL.Writer writer = HLogFactory.createWALWriter(FS,
+    WALProvider.Writer writer = WALFactory.createWALWriter(FS,
       logPath, conf);
     for(int i = 0; i < 3; i++) {
       byte[] b = Bytes.toBytes(Integer.toString(i));
       KeyValue kv = new KeyValue(b,b,b);
       WALEdit edit = new WALEdit();
       edit.add(kv);
-      HLogKey key = new HLogKey(b, TableName.valueOf(b), 0, 0,
+      WALKey key = new WALKey(b, TableName.valueOf(b), 0, 0,
           HConstants.DEFAULT_CLUSTER_ID);
-      writer.append(new WAL.Entry(key, edit));
+      writer.append(new WALProvider.Entry(key, edit));
       writer.sync();
     }
     writer.close();
 
-    WAL.Reader reader = HLogFactory.createReader(FS, 
+    WALProvider.Reader reader = WALFactory.createReader(FS, 
         logPath, conf);
-    WAL.Entry entry = reader.next();
+    WALProvider.Entry entry = reader.next();
     assertNotNull(entry);
 
     Path oldLogPath = new Path(oldLogDir, "log");

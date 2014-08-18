@@ -39,8 +39,8 @@ import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionRequest;
 import org.apache.hadoop.hbase.regionserver.compactions.RatioBasedCompactionPolicy;
-import org.apache.hadoop.hbase.regionserver.wal.WALService;
-import org.apache.hadoop.hbase.regionserver.wal.HLogFactory;
+import org.apache.hadoop.hbase.regionserver.wal.WAL;
+import org.apache.hadoop.hbase.regionserver.wal.WALFactory;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.junit.After;
@@ -65,7 +65,7 @@ public class TestDefaultCompactSelection extends TestCase {
   protected static final long minSize = 10;
   protected static final long maxSize = 2100;
 
-  private WALService hlog;
+  private WAL wal;
   private HRegion region;
 
   @Override
@@ -94,11 +94,11 @@ public class TestDefaultCompactSelection extends TestCase {
     htd.addFamily(hcd);
     HRegionInfo info = new HRegionInfo(htd.getTableName(), null, null, false);
 
-    hlog = HLogFactory.createHLog(fs, basedir, logName, conf);
+    wal = WALFactory.createWAL(fs, basedir, logName, conf);
     region = HRegion.createHRegion(info, basedir, conf, htd);
     HRegion.closeHRegion(region);
     Path tableDir = FSUtils.getTableDir(basedir, htd.getTableName());
-    region = new HRegion(tableDir, hlog, fs, conf, info, htd, null);
+    region = new HRegion(tableDir, wal, fs, conf, info, htd, null);
 
     store = new HStore(region, hcd, conf);
 
@@ -116,7 +116,7 @@ public class TestDefaultCompactSelection extends TestCase {
       ex = e;
     }
     try {
-      hlog.closeAndDelete();
+      wal.closeAndDelete();
     } catch (IOException e) {
       LOG.warn("Caught Exception", e);
       ex = e;

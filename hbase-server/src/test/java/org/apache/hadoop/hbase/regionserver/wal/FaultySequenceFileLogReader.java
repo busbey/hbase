@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.LinkedList;
 import java.util.Queue;
 
-import org.apache.hadoop.hbase.regionserver.wal.WAL.Entry;
+import org.apache.hadoop.hbase.regionserver.wal.WALProvider.Entry;
 
 public class FaultySequenceFileLogReader extends SequenceFileLogReader {
 
@@ -45,7 +45,7 @@ public class FaultySequenceFileLogReader extends SequenceFileLogReader {
 
     if (nextQueue.isEmpty()) { // Read the whole thing at once and fake reading
       while (b == true) {
-        Entry e = new Entry(new HLogKey(), new WALEdit());
+        Entry e = new Entry(new WALKey(), new WALEdit());
         if (compressionContext != null) {
           e.setCompressionContext(compressionContext);
         }

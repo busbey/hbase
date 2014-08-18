@@ -52,7 +52,7 @@ public class MetricsWAL {
 
     if (time > 1000) {
       source.incrementSlowAppendCount();
-      LOG.warn(String.format("%s took %d ms appending an edit to hlog; len~=%s",
+      LOG.warn(String.format("%s took %d ms appending an edit to wal; len~=%s",
           Thread.currentThread().getName(),
           time,
           StringUtils.humanReadableInt(size)));
