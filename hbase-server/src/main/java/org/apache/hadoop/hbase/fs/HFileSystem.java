@@ -63,7 +63,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * separate filesystem objects for reading and writing hfiles and wals.
  */
 public class HFileSystem extends FilterFileSystem {
-  public static final Log LOG = LogFactory.getLog(HFileSystem.class);
+  private static final Log LOG = LogFactory.getLog(HFileSystem.class);
 
   /** Parameter name for HBase WAL directory */
   public static final String HBASE_WAL_DIR = "hbase.wal.dir";

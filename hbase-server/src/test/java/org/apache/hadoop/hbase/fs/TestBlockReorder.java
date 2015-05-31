@@ -80,8 +80,8 @@ public class TestBlockReorder {
   private static final Log LOG = LogFactory.getLog(TestBlockReorder.class);
 
   static {
-    ((Log4JLogger) DFSClient.LOG).getLogger().setLevel(Level.ALL);
-    ((Log4JLogger) HFileSystem.LOG).getLogger().setLevel(Level.ALL);
+    ((Log4JLogger) LogFactory.getLog(DFSClient.class)).getLogger().setLevel(Level.ALL);
+    ((Log4JLogger) LogFactory.getLog(HFileSystem.class)).getLogger().setLevel(Level.ALL);
   }
 
   private Configuration conf;

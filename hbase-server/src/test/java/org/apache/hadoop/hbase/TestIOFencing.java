@@ -89,7 +89,7 @@ public class TestIOFencing {
     //((Log4JLogger)LeaseManager.LOG).getLogger().setLevel(Level.ALL);
     //((Log4JLogger)LogFactory.getLog("org.apache.hadoop.hdfs.server.namenode.FSNamesystem"))
     //    .getLogger().setLevel(Level.ALL);
-    //((Log4JLogger)DFSClient.LOG).getLogger().setLevel(Level.ALL);
+    //((Log4JLogger) LogFactory.getLog(DFSClient.class)).getLogger().setLevel(Level.ALL);
   }
 
   public abstract static class CompactionBlockerRegion extends HRegion {
