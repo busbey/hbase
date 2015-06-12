@@ -77,6 +77,7 @@ public class ScannerResource extends ResourceBase {
       final UriInfo uriInfo) {
     servlet.getMetrics().incrementRequests(1);
     if (servlet.isReadOnly()) {
+      LOG.debug("servlet is read only, forbid all updates.");
       return Response.status(Response.Status.FORBIDDEN)
         .type(MIMETYPE_TEXT).entity("Forbidden" + CRLF)
         .build();
@@ -111,14 +112,17 @@ public class ScannerResource extends ResourceBase {
     } catch (Exception e) {
       servlet.getMetrics().incrementFailedPutRequests(1);
       if (e instanceof TableNotFoundException) {
+        LOG.debug("Couldn't find table, returning NOT_FOUND.", e);
         return Response.status(Response.Status.NOT_FOUND)
           .type(MIMETYPE_TEXT).entity("Not found" + CRLF)
           .build();
       } else if (e instanceof RuntimeException) {
+        LOG.debug("runtime failure to handle request.", e);
         return Response.status(Response.Status.BAD_REQUEST)
           .type(MIMETYPE_TEXT).entity("Bad request" + CRLF)
           .build();
       }
+      LOG.debug("misc failure handling request.", e);
       return Response.status(Response.Status.SERVICE_UNAVAILABLE)
         .type(MIMETYPE_TEXT).entity("Unavailable" + CRLF)
         .build();

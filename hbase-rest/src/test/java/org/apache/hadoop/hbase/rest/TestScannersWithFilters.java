@@ -75,14 +75,25 @@ import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.testclassification.RestTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.junit.rules.TestName;
 
 @Category({RestTests.class, MediumTests.class})
 public class TestScannersWithFilters {
 
   private static final Log LOG = LogFactory.getLog(TestScannersWithFilters.class);
+
+  @Rule
+  public final TestName name = new TestName();
+
+  @Before
+  public void announce() {
+    LOG.info("Running test " + name.getMethodName());
+  }
 
   private static final TableName TABLE = TableName.valueOf("TestScannersWithFilters");
 
@@ -229,14 +240,15 @@ public class TestScannersWithFilters {
     byte[] body = Bytes.toBytes(writer.toString());
     Response response = client.put("/" + TABLE + "/scanner",
       Constants.MIMETYPE_XML, body);
-    assertEquals(response.getCode(), 201);
+    assertEquals("put failed according to HTTP response code", 201, response.getCode());
     String scannerURI = response.getLocation();
-    assertNotNull(scannerURI);
+    assertNotNull("scanner uri should not be null.", scannerURI);
 
     // get a cell set
     response = client.get(scannerURI, Constants.MIMETYPE_XML);
-    assertEquals(response.getCode(), 200);
-    assertEquals(Constants.MIMETYPE_XML, response.getHeader("content-type"));
+    assertEquals("get failed according to HTTP response code", 200, response.getCode());
+    assertEquals("response should be xml.", Constants.MIMETYPE_XML,
+        response.getHeader("content-type"));
     CellSetModel cells = (CellSetModel)
       unmarshaller.unmarshal(new ByteArrayInputStream(response.getBody()));
 
@@ -251,7 +263,7 @@ public class TestScannersWithFilters {
 
     // delete the scanner
     response = client.delete(scannerURI);
-    assertEquals(response.getCode(), 200);
+    assertEquals("delete failed according to HTTP response code.", 200, response.getCode());
   }
 
   private static void verifyScanFull(Scan s, KeyValue [] kvs)
@@ -260,24 +272,24 @@ public class TestScannersWithFilters {
     model.setBatch(Integer.MAX_VALUE); // fetch it all at once
     StringWriter writer = new StringWriter();
     marshaller.marshal(model, writer);
-    LOG.debug(writer.toString());
+    LOG.debug("request body: " + writer.toString());
     byte[] body = Bytes.toBytes(writer.toString());
     Response response = client.put("/" + TABLE + "/scanner",
       Constants.MIMETYPE_XML, body);
-    assertEquals(response.getCode(), 201);
+    assertEquals("put failed according to HTTP response code.", 201, response.getCode());
     String scannerURI = response.getLocation();
-    assertNotNull(scannerURI);
+    assertNotNull("location of result scanner shuoldn't be null.", scannerURI);
 
     // get a cell set
     response = client.get(scannerURI, Constants.MIMETYPE_XML);
-    assertEquals(response.getCode(), 200);
-    assertEquals(Constants.MIMETYPE_XML, response.getHeader("content-type"));
+    assertEquals("get failed according to HTTP response code.", 200, response.getCode());
+    assertEquals("response should be XML", Constants.MIMETYPE_XML, response.getHeader("content-type"));
     CellSetModel cellSet = (CellSetModel)
       unmarshaller.unmarshal(new ByteArrayInputStream(response.getBody()));
 
     // delete the scanner
     response = client.delete(scannerURI);
-    assertEquals(response.getCode(), 200);
+    assertEquals("delete failed according to HTTP response code.", 200, response.getCode());
 
     int row = 0;
     int idx = 0;
@@ -318,20 +330,21 @@ public class TestScannersWithFilters {
     byte[] body = Bytes.toBytes(writer.toString());
     Response response = client.put("/" + TABLE + "/scanner",
       Constants.MIMETYPE_XML, body);
-    assertEquals(response.getCode(), 201);
+    assertEquals("Put failed according to HTTP response code.", 201, response.getCode());
     String scannerURI = response.getLocation();
-    assertNotNull(scannerURI);
+    assertNotNull("scanner URI shouldn't be null.", scannerURI);
 
     // get a cell set
     response = client.get(scannerURI, Constants.MIMETYPE_XML);
-    assertEquals(response.getCode(), 200);
-    assertEquals(Constants.MIMETYPE_XML, response.getHeader("content-type"));
+    assertEquals("Get failed according to HTTP response code.", 200, response.getCode());
+    assertEquals("response should be xml.", Constants.MIMETYPE_XML,
+        response.getHeader("content-type"));
     CellSetModel cellSet = (CellSetModel)
       unmarshaller.unmarshal(new ByteArrayInputStream(response.getBody()));
 
     // delete the scanner
     response = client.delete(scannerURI);
-    assertEquals(response.getCode(), 200);
+    assertEquals("delete failed according to HTTP response code.", 200, response.getCode());
 
     Iterator<RowModel> i = cellSet.getRows().iterator();
     int j = 0;

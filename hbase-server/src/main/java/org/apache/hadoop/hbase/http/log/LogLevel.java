@@ -37,7 +37,7 @@ import org.apache.commons.logging.impl.Log4JLogger;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
 import org.apache.hadoop.hbase.http.HttpServer;
-import org.apache.hadoop.util.ServletUtil;
+import org.apache.hadoop.hbase.http.ServletUtil;
 
 /**
  * Change log level in runtime.

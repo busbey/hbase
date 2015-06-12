@@ -31,6 +31,8 @@ import javax.xml.bind.annotation.XmlAttribute;
 import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlRootElement;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Scan;
@@ -102,6 +104,7 @@ import org.codehaus.jackson.jaxrs.JacksonJaxbJsonProvider;
 @XmlRootElement(name="Scanner")
 @InterfaceAudience.Private
 public class ScannerModel implements ProtobufMessageHandler, Serializable {
+  private static final Log LOG = LogFactory.getLog(ScannerModel.class);
 
   private static final long serialVersionUID = 1L;
 
@@ -364,6 +367,9 @@ public class ScannerModel implements ProtobufMessageHandler, Serializable {
     }
 
     public Filter build() {
+      if (type == null) {
+        throw new IllegalStateException("filter type has not been initialized.");
+      }
       Filter filter;
       switch (FilterType.valueOf(type)) {
       case ColumnCountGetFilter:

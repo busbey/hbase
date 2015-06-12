@@ -51,6 +51,9 @@ public class ScannerResultGenerator extends ResultGenerator {
     if (filter == null || filter.length() == 0) {
       return null;
     }
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("constructing filter from JSON representation: '" + filter + "'");
+    }
     return buildFilter(filter);
   }
 
