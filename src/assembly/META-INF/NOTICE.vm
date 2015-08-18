@@ -256,7 +256,7 @@ JRuby's licence.
 #end
 #if(!${aggregated})
 --
-# For now, we're assuming we will aggregate all Category B licenses
+## For now, we're assuming we will aggregate all Category B licenses
 This product includes ${dep.name}
 
 Licensed under ${dep.licenses[0].name}, see LICENSE for details.
