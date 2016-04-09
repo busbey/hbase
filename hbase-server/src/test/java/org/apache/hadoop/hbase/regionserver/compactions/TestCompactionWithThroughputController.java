@@ -45,8 +45,6 @@ import org.apache.hadoop.hbase.regionserver.HStore;
 import org.apache.hadoop.hbase.regionserver.Region;
 import org.apache.hadoop.hbase.regionserver.Store;
 import org.apache.hadoop.hbase.regionserver.StoreEngine;
-import org.apache.hadoop.hbase.regionserver.StripeStoreConfig;
-import org.apache.hadoop.hbase.regionserver.StripeStoreEngine;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.JVMClusterUtil;
@@ -231,57 +229,4 @@ public class TestCompactionWithThroughputController {
     }
   }
 
-  /**
-   * Test the logic that we calculate compaction pressure for a striped store.
-   */
-  @Test
-  public void testGetCompactionPressureForStripedStore() throws Exception {
-    Configuration conf = TEST_UTIL.getConfiguration();
-    conf.set(StoreEngine.STORE_ENGINE_CLASS_KEY, StripeStoreEngine.class.getName());
-    conf.setBoolean(StripeStoreConfig.FLUSH_TO_L0_KEY, false);
-    conf.setInt(StripeStoreConfig.INITIAL_STRIPE_COUNT_KEY, 2);
-    conf.setInt(StripeStoreConfig.MIN_FILES_KEY, 4);
-    conf.setInt(HStore.BLOCKING_STOREFILES_KEY, 12);
-    TEST_UTIL.startMiniCluster(1);
-    Connection conn = ConnectionFactory.createConnection(conf);
-    try {
-      HTableDescriptor htd = new HTableDescriptor(tableName);
-      htd.addFamily(new HColumnDescriptor(family));
-      htd.setCompactionEnabled(false);
-      TEST_UTIL.getHBaseAdmin().createTable(htd);
-      TEST_UTIL.waitTableAvailable(tableName);
-      HStore store = (HStore) getStoreWithName(tableName);
-      assertEquals(0, store.getStorefilesCount());
-      assertEquals(0.0, store.getCompactionPressure(), EPSILON);
-      Table table = conn.getTable(tableName);
-      for (int i = 0; i < 4; i++) {
-        table.put(new Put(Bytes.toBytes(i)).add(family, qualifier, new byte[0]));
-        table.put(new Put(Bytes.toBytes(100 + i)).add(family, qualifier, new byte[0]));
-        TEST_UTIL.flush(tableName);
-      }
-      assertEquals(8, store.getStorefilesCount());
-      assertEquals(0.0, store.getCompactionPressure(), EPSILON);
-
-      table.put(new Put(Bytes.toBytes(4)).add(family, qualifier, new byte[0]));
-      table.put(new Put(Bytes.toBytes(104)).add(family, qualifier, new byte[0]));
-      TEST_UTIL.flush(tableName);
-      assertEquals(10, store.getStorefilesCount());
-      assertEquals(0.5, store.getCompactionPressure(), EPSILON);
-
-      table.put(new Put(Bytes.toBytes(5)).add(family, qualifier, new byte[0]));
-      table.put(new Put(Bytes.toBytes(105)).add(family, qualifier, new byte[0]));
-      TEST_UTIL.flush(tableName);
-      assertEquals(12, store.getStorefilesCount());
-      assertEquals(1.0, store.getCompactionPressure(), EPSILON);
-
-      table.put(new Put(Bytes.toBytes(6)).add(family, qualifier, new byte[0]));
-      table.put(new Put(Bytes.toBytes(106)).add(family, qualifier, new byte[0]));
-      TEST_UTIL.flush(tableName);
-      assertEquals(14, store.getStorefilesCount());
-      assertEquals(2.0, store.getCompactionPressure(), EPSILON);
-    } finally {
-      conn.close();
-      TEST_UTIL.shutdownMiniCluster();
-    }
-  }
 }
