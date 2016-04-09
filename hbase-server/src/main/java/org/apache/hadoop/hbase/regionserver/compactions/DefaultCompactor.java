@@ -67,25 +67,6 @@ public class DefaultCompactor extends Compactor<Writer> {
   }
 
   /**
-   * Creates a writer for a new file in a temporary directory.
-   * @param fd The file details.
-   * @return Writer for a new StoreFile in the tmp dir.
-   * @throws IOException
-   */
-  protected StoreFile.Writer createTmpWriter(FileDetails fd, boolean shouldDropBehind)
-    throws IOException {
-
-      // When all MVCC readpoints are 0, don't write them.
-      // See HBASE-8166, HBASE-12600, and HBASE-13389.
-
-      return store.createWriterInTmp(fd.maxKeyCount, this.compactionCompression,
-            /* isCompaction = */ true,
-            /* includeMVCCReadpoint = */ fd.maxMVCCReadpoint > 0,
-            /* includesTags = */ fd.maxTagsLength > 0,
-            /* shouldDropBehind = */ shouldDropBehind);
-  }
-
-  /**
    * Compact a list of files for testing. Creates a fake {@link CompactionRequest} to pass to
    * {@link #compact(CompactionRequest, CompactionThroughputController, User)};
    * @param filesToCompact the files to compact. These are used as the compactionSelection for the

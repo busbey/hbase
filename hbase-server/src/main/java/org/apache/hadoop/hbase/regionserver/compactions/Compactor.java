@@ -62,6 +62,8 @@ import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.Writables;
 import org.apache.hadoop.util.StringUtils.TraditionalBinaryPrefix;
 
+import com.google.common.io.Closeables;
+
 /**
  * A compactor is a compaction algorithm associated a given policy. Base class also contains
  * reusable parts for implementing compactors (what is common and what isn't is evolving).
@@ -242,8 +244,8 @@ public abstract class Compactor<T extends CellSink> {
 
     @Override
     public ScanType getScanType(CompactionRequest request) {
-      return request.isAllFiles() ? ScanType.COMPACT_DROP_DELETES
-          : ScanType.COMPACT_RETAIN_DELETES;
+      return request.isRetainDeleteMarkers() ? ScanType.COMPACT_RETAIN_DELETES
+          : ScanType.COMPACT_DROP_DELETES;
     }
 
     @Override
