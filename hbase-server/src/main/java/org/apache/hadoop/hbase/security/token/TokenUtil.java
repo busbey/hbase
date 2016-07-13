@@ -153,6 +153,8 @@ public class TokenUtil {
     }
   }
 
+<!-- TODO move MR specific methods into an MR-specific TokenUtil -->
+
   /**
    * Obtain an authentication token on behalf of the given user and add it to
    * the credentials for the given map reduce job.
@@ -262,6 +264,8 @@ public class TokenUtil {
     }
     job.getCredentials().addToken(token.getService(), token);
   }
+
+<!-- /TODO move MR specific methods into an MR-specific TokenUtil -->
 
   /**
    * Checks if an authentication tokens exists for the connected cluster,

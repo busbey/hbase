@@ -117,11 +117,6 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-jar-plugin</artifactId>
         <configuration>
-          <archive>
-            <manifest>
-              <mainClass>org/apache/hadoop/hbase/mapreduce/Driver</mainClass>
-            </manifest>
-          </archive>
           <!-- Exclude these 2 packages, because their dependency _binary_ files
             include the sources, and Maven 2.2 appears to add them to the sources to compile,
             weird -->
@@ -394,6 +389,12 @@
     <dependency>
       <groupId>org.apache.hbase</groupId>
       <artifactId>hbase-metrics</artifactId>
+    </dependency>
+    <dependency>
+    <!-- TODO move tools to module to remove mapreduce needs -->
+    <dependency>
+      <groupId>org.apache.hbase</groupId>
+      <artifactId>hbase-hadoop-mapreduce</artifactId>
     </dependency>
     <!-- resource bundle only needed at build time -->
     <dependency>
