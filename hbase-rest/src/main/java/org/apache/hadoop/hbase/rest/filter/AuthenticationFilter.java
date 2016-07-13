@@ -18,9 +18,14 @@ import org.apache.hadoop.hbase.classification.InterfaceStability;
 import org.apache.hadoop.security.authentication.client.AuthenticatedURL;
 import org.apache.hadoop.security.authentication.client.AuthenticationException;
 import org.apache.hadoop.security.authentication.client.KerberosAuthenticator;
+import org.apache.hadoop.security.authentication.server.AuthenticationHandler;
+import org.apache.hadoop.security.authentication.server.AuthenticationToken;
+import org.apache.hadoop.security.authentication.server.KerberosAuthenticationHandler;
+import org.apache.hadoop.security.authentication.server.PseudoAuthenticationHandler;
 import org.apache.hadoop.security.authentication.util.FileSignerSecretProvider;
 import org.apache.hadoop.security.authentication.util.RandomSignerSecretProvider;
 import org.apache.hadoop.security.authentication.util.ZKSignerSecretProvider;
+import org.apache.hadoop.security.authentication.util.Signer;
 import org.apache.hadoop.security.authentication.util.SignerSecretProvider;
 import org.apache.hadoop.security.authentication.util.SignerException;
 import org.apache.commons.logging.Log;
@@ -130,7 +135,12 @@ import java.util.*;
  * <ul>
  *   <li>AuthenticatedURL</li>
  *   <li>AuthenticationException</li>
+ *   <li>AuthenticationHandler</li>
+ *   <li>AuthenticationToken</li>
+ *   <li>PseudoAuthenticationHandler</li>
+ *   <li>KerberosAuthenticationHandler</li>
  *   <li>KerberosAuthenticator</li>
+ *   <li>Signer</li>
  *   <li>SignerException</li>
  *   <li></li>
  * </ul>
@@ -535,7 +545,7 @@ public class AuthenticationFilter implements Filter {
       if (authHandler.managementOperation(token, httpRequest, httpResponse)) {
         if (token == null) {
           if (LOG.isDebugEnabled()) {
-            LOG.debug("Request [{}] triggering authentication", getRequestURL(httpRequest));
+            LOG.debug("Request [" + getRequestURL(httpRequest) + "] triggering authentication");
           }
           token = authHandler.authenticate(httpRequest, httpResponse);
           if (token != null && token.getExpires() != 0 &&
@@ -547,7 +557,7 @@ public class AuthenticationFilter implements Filter {
         if (token != null) {
           unauthorizedResponse = false;
           if (LOG.isDebugEnabled()) {
-            LOG.debug("Request [{}] user [{}] authenticated", getRequestURL(httpRequest), token.getUserName());
+            LOG.debug("Request ["+getRequestURL(httpRequest) +"] user [" +token.getUserName()+ "] authenticated");
           }
           final AuthenticationToken authToken = token;
           httpRequest = new HttpServletRequestWrapper(httpRequest) {
