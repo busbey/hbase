@@ -79,6 +79,37 @@ under the License.
       </licenses>
     </project>
   </supplement>
+  <supplement>
+    <project>
+      <groupId>net.jcip</groupId>
+      <artifactId>jcip-annotations</artifactId>
+
+<!-- TODO get actual license
+
+
+<groupId>net.jcip</groupId>
+<artifactId>jcip-annotations</artifactId>
+<version>1.0</version>
+        
+maven central search
+g:net.jcip AND a:jcip-annotations AND v:1.0
+          
+project website
+http://jcip.net/
+project source
+${dep.scm.url}
+
+
+-->
+      <licenses>
+        <license>
+          <name>The Apache Software License, Version 2.0</name>
+          <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+          <distribution>repo</distribution>
+        </license>
+      </licenses>
+    </project>
+  </supplement>
 <!-- Artifacts with ambiguously named licenses in POM -->
   <supplement>
     <project>
