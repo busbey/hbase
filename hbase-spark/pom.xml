@@ -852,12 +852,12 @@
     </profile>
     <!-- profile for building against Hadoop 2 from HADOOP-11804 -->
     <profile>
-      <id>hadoop-2.x-client</id>
+      <id>hadoop-3.x-client</id>
       <activation>
         <property>
           <!--Below formatting for dev-support/generate-hadoopX-poms.sh-->
           <name>hadoop.profile</name>
-          <value>2.0-client</value>
+          <value>3.0-client</value>
         </property>
       </activation>
       <dependencies>

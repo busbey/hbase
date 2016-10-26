@@ -256,11 +256,11 @@ if we can combine these profiles somehow -->
          </build>
      </profile>
     <profile>
-      <id>hadoop-2.x-client</id>
+      <id>hadoop-3.x-client</id>
       <activation>
         <property>
           <name>hadoop.profile</name>
-          <value>2.0-client</value>
+          <value>3.0-client</value>
         </property>
       </activation>
       <dependencies>

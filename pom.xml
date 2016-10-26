@@ -2468,23 +2468,23 @@
         </dependencies>
       </dependencyManagement>
     </profile>
-    <!-- profile for building against Hadoop 2 from HADOOP-11804 -->
+    <!-- profile for building against Hadoop 3 from HADOOP-11804 -->
     <profile>
-      <id>hadoop-2.x-client</id>
+      <id>hadoop-3.x-client</id>
       <activation>
         <property>
           <!--Below formatting for dev-support/generate-hadoopX-poms.sh-->
           <name>hadoop.profile</name>
-          <value>2.0-client</value>
+          <value>3.0-client</value>
         </property>
       </activation>
       <modules>
         <module>hbase-hadoop2-compat</module>
       </modules>
       <properties>
-        <hadoop.version>${hadoop-two.version}</hadoop.version>
+        <hadoop.version>3.0.0-alpha2-SNAPSHOT</hadoop.version>
         <compat.module>hbase-hadoop2-compat</compat.module>
-        <assembly.file>src/main/assembly/hadoop-two-client-compat.xml</assembly.file>
+        <assembly.file>src/main/assembly/hadoop-three-client-compat.xml</assembly.file>
       </properties>
       <dependencyManagement>
         <dependencies>
@@ -2509,7 +2509,7 @@
           <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-minikdc</artifactId>
-            <version>${hadoop-two.version}</version>
+            <version>${hadoop.version}</version>
             <scope>test</scope>
           </dependency>
         </dependencies>
