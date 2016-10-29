@@ -91,7 +91,7 @@ public class ProtobufLogReader extends ReaderBase {
   private static List<String> writerClsNames = new ArrayList<>();
   static {
     writerClsNames.add(ProtobufLogWriter.class.getSimpleName());
-    writerClsNames.add(AsyncProtobufLogWriter.class.getSimpleName());
+    writerClsNames.add("org.apache.hadoop.hbase.regionserver.wal.AsyncProtobufLogWriter");
   }
   
   // cell codec classname

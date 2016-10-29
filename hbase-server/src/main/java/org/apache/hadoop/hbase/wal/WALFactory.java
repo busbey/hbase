@@ -74,11 +74,22 @@ public class WALFactory {
     defaultProvider(FSHLogProvider.class),
     filesystem(FSHLogProvider.class),
     multiwal(RegionGroupingProvider.class),
-    asyncfs(AsyncFSWALProvider.class);
+    asyncfs("org.apache.hadoop.hbase.wal.AsyncFSWALProvider",
+        "Couldn't find the classes for the Async WAL. Check if the hbase-dfsclient.jar is on the classpath.");
 
     Class<? extends WALProvider> clazz;
     Providers(Class<? extends WALProvider> clazz) {
       this.clazz = clazz;
+    }
+
+    Providers(final String className, final String helpForFailure) {
+      // should we switch to have a getClass so this can be lazy? would allow region server to come up
+      // when e.g. async provider is not on classpath so long as that provider isn't selected for use.
+      try {
+        this.clazz = Class.forName(className).asSubclass(WALProvider.class);
+      } catch (ClassNotFoundException exception) {
+        throw new RuntimeException(helpForFailure, exception);
+      }
     }
   }
 

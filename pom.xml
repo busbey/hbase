@@ -62,6 +62,7 @@
 
   <modules>
     <module>hbase-resource-bundle</module>
+    <module>hbase-dfsclient</module>
     <module>hbase-server</module>
     <module>hbase-thrift</module>
     <module>hbase-shell</module>
@@ -1342,6 +1343,7 @@
     <avro.version>1.7.7</avro.version>
     <commons-cli.version>1.4</commons-cli.version>
     <commons-codec.version>1.9</commons-codec.version>
+    <commons-httpclient.version>3.1</commons-httpclient.version>
     <!-- pretty outdated -->
     <commons-io.version>2.5</commons-io.version>
     <commons-lang.version>2.6</commons-lang.version>
@@ -1729,6 +1731,11 @@
         <groupId>commons-codec</groupId>
         <artifactId>commons-codec</artifactId>
         <version>${commons-codec.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>commons-httpclient</groupId>
+        <artifactId>commons-httpclient</artifactId>
+        <version>${commons-httpclient.version}</version>
       </dependency>
       <dependency>
         <groupId>commons-io</groupId>

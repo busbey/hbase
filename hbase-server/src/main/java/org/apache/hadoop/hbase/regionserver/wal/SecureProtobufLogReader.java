@@ -48,8 +48,8 @@ public class SecureProtobufLogReader extends ProtobufLogReader {
   static {
     writerClsNames.add(ProtobufLogWriter.class.getSimpleName());
     writerClsNames.add(SecureProtobufLogWriter.class.getSimpleName());
-    writerClsNames.add(AsyncProtobufLogWriter.class.getSimpleName());
-    writerClsNames.add(SecureAsyncProtobufLogWriter.class.getSimpleName());
+    writerClsNames.add("org.apache.hadoop.hbase.regionserver.wal.AsyncProtobufLogWriter");
+    writerClsNames.add("org.apache.hadoop.hbase.regionserver.wal.SecureAsyncProtobufLogWriter");
   }
 
   @Override
