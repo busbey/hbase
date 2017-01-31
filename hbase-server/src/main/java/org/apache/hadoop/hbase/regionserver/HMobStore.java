@@ -59,8 +59,6 @@ import org.apache.hadoop.hbase.mob.MobFile;
 import org.apache.hadoop.hbase.mob.MobFileName;
 import org.apache.hadoop.hbase.mob.MobStoreEngine;
 import org.apache.hadoop.hbase.mob.MobUtils;
-import org.apache.hadoop.hbase.regionserver.compactions.CompactionContext;
-import org.apache.hadoop.hbase.regionserver.compactions.CompactionThroughputController;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ChecksumType;
 import org.apache.hadoop.hbase.util.HFileArchiveUtil;
@@ -445,70 +443,6 @@ public class HMobStore extends HStore {
    */
   public Path getPath() {
     return mobFamilyPath;
-  }
-
-  /**
-   * The compaction in the store of mob.
-   * The cells in this store contains the path of the mob files. There might be race
-   * condition between the major compaction and the sweeping in mob files.
-   * In order to avoid this, we need mutually exclude the running of the major compaction and
-   * sweeping in mob files.
-   * The minor compaction is not affected.
-   * The major compaction is marked as retainDeleteMarkers when a sweeping is in progress.
-   */
-  @Override
-  public List<StoreFile> compact(CompactionContext compaction,
-      CompactionThroughputController throughputController) throws IOException {
-    // If it's major compaction, try to find whether there's a sweeper is running
-    // If yes, mark the major compaction as retainDeleteMarkers
-    if (compaction.getRequest().isAllFiles()) {
-      // Use the Zookeeper to coordinate.
-      // 1. Acquire a operation lock.
-      //   1.1. If no, mark the major compaction as retainDeleteMarkers and continue the compaction.
-      //   1.2. If the lock is obtained, search the node of sweeping.
-      //      1.2.1. If the node is there, the sweeping is in progress, mark the major
-      //             compaction as retainDeleteMarkers and continue the compaction.
-      //      1.2.2. If the node is not there, add a child to the major compaction node, and
-      //             run the compaction directly.
-      TableLock lock = null;
-      if (tableLockManager != null) {
-        lock = tableLockManager.readLock(tableLockName, "Major compaction in HMobStore");
-      }
-      boolean tableLocked = false;
-      String tableName = getTableName().getNameAsString();
-      if (lock != null) {
-        try {
-          LOG.info("Start to acquire a read lock for the table[" + tableName
-              + "], ready to perform the major compaction");
-          lock.acquire();
-          tableLocked = true;
-        } catch (Exception e) {
-          LOG.error("Fail to lock the table " + tableName, e);
-        }
-      } else {
-        // If the tableLockManager is null, mark the tableLocked as true.
-        tableLocked = true;
-      }
-      try {
-        if (!tableLocked) {
-          LOG.warn("Cannot obtain the table lock, maybe a sweep tool is running on this table["
-              + tableName + "], forcing the delete markers to be retained");
-          compaction.getRequest().forceRetainDeleteMarkers();
-        }
-        return super.compact(compaction, throughputController);
-      } finally {
-        if (tableLocked && lock != null) {
-          try {
-            lock.release();
-          } catch (IOException e) {
-            LOG.error("Fail to release the table lock " + tableName, e);
-          }
-        }
-      }
-    } else {
-      // If it's not a major compaction, continue the compaction.
-      return super.compact(compaction, throughputController);
-    }
   }
 
   public void updateMobCompactedIntoMobCellsCount(long count) {

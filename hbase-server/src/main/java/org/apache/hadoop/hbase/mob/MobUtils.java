@@ -22,6 +22,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
@@ -89,6 +90,14 @@ public class MobUtils {
       return new SimpleDateFormat("yyyyMMdd");
     }
   };
+
+  private static final List<Tag> REF_DELETE_MARKER_TAG = Arrays.asList(MobConstants.MOB_REF_TAG);
+
+  /**
+   * Private constructor to keep this class from being instantiated.
+   */
+  private MobUtils() {
+  }
 
   /**
    * Formats a date to a string.
@@ -941,5 +950,44 @@ public class MobUtils {
     // Rest is daily
     id.setDate(dateStr);
     return skipCompcation;
+  }
+
+  /**
+   * Creates a mob ref delete marker.
+   * @param cell The current delete marker.
+   * @return A delete marker with the ref tag.
+   */
+  public static Cell createMobRefDeleteMarker(Cell cell) {
+    return KeyValue.cloneAndAddTags(cell, REF_DELETE_MARKER_TAG);
+  }
+
+  /**
+   * Checks if the mob file is expired.
+   * @param column The descriptor of the current column family.
+   * @param current The current time.
+   * @param fileDate The date string parsed from the mob file name.
+   * @return True if the mob file is expired.
+   */
+  public static boolean isMobFileExpired(HColumnDescriptor column, long current, String fileDate) {
+    if (column.getMinVersions() > 0) {
+      return false;
+    }
+    long timeToLive = column.getTimeToLive();
+    if (Integer.MAX_VALUE == timeToLive) {
+      return false;
+    }
+
+    Date expireDate = new Date(current - timeToLive * 1000);
+    expireDate = new Date(expireDate.getYear(), expireDate.getMonth(), expireDate.getDate());
+    try {
+      Date date = parseDate(fileDate);
+      if (date.getTime() < expireDate.getTime()) {
+        return true;
+      }
+    } catch (ParseException e) {
+      LOG.warn("Failed to parse the date " + fileDate, e);
+      return false;
+    }
+    return false;
   }
 }

@@ -244,8 +244,8 @@ public abstract class Compactor<T extends CellSink> {
 
     @Override
     public ScanType getScanType(CompactionRequest request) {
-      return request.isRetainDeleteMarkers() ? ScanType.COMPACT_RETAIN_DELETES
-          : ScanType.COMPACT_DROP_DELETES;
+      return request.isAllFiles() ? ScanType.COMPACT_DROP_DELETES
+          : ScanType.COMPACT_RETAIN_DELETES;
     }
 
     @Override

@@ -59,12 +59,14 @@ import org.apache.hadoop.hbase.mob.MobConstants;
 import org.apache.hadoop.hbase.mob.MobFileName;
 import org.apache.hadoop.hbase.mob.MobUtils;
 import org.apache.hadoop.hbase.mob.filecompactions.MobFileCompactionRequest.CompactionType;
+import org.apache.hadoop.hbase.mob.filecompactions.PartitionedMobFileCompactionRequest;
 import org.apache.hadoop.hbase.mob.filecompactions.PartitionedMobFileCompactionRequest.CompactionPartition;
 import org.apache.hadoop.hbase.mob.filecompactions.PartitionedMobFileCompactionRequest.CompactionPartitionId;
 import org.apache.hadoop.hbase.regionserver.*;
 import org.apache.hadoop.hbase.regionserver.StoreFile.Writer;
 import org.apache.hadoop.hbase.regionserver.ScannerContext;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.Pair;
 
 /**
@@ -336,11 +338,19 @@ public class PartitionedMobFileCompactor extends MobFileCompactor {
    * @param delFiles The del files.
    * @param table The current table.
    * @return The paths of new mob files after compactions.
-   * @throws IOException
+   * @throws IOException if IO failure is encountered
    */
   private List<Path> compactMobFilePartition(PartitionedMobFileCompactionRequest request,
-    CompactionPartition partition, List<StoreFile> delFiles, HTable table) throws IOException {
-    List<Path> newFiles = new ArrayList<Path>();
+                                             CompactionPartition partition,
+                                             List<StoreFile> delFiles,
+                                             HTable table) throws IOException {
+    if (MobUtils.isMobFileExpired(column, EnvironmentEdgeManager.currentTime(),
+      partition.getPartitionId().getDate())) {
+      // If the files in the partition are expired, do not compact them and directly
+      // return an empty list.
+      return Collections.emptyList();
+    }
+    List<Path> newFiles = new ArrayList<>();
     List<FileStatus> files = partition.listFiles();
     int offset = 0;
     Path bulkloadPathOfPartition = new Path(bulkloadPath, partition.getPartitionId().toString());

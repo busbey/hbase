@@ -271,8 +271,8 @@ public class TestMobCompaction {
       results.clear();
       scanner.next(results);
     }
-    // assert the delete mark is not retained after the major compaction
-    assertEquals(0, deleteCount);
+    // assert the delete mark is retained after the major compaction
+    assertEquals(1, deleteCount);
     scanner.close();
     // assert the deleted cell is not counted
     assertEquals("The cells in mob files", numHfiles - 1, countMobCellsInMobFiles(1));
