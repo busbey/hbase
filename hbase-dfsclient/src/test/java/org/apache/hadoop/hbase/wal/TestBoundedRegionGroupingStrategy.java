@@ -67,7 +67,7 @@ public class TestBoundedRegionGroupingStrategy {
 
   @Parameters(name = "{index}: delegate-provider={0}")
   public static Iterable<Object[]> data() {
-    return Arrays.asList(new Object[] { "asyncfs" });
+    return Arrays.asList(new Object[][] { new Object[] { "asyncfs" } });
   }
 
   @Before

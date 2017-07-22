@@ -65,7 +65,7 @@ import org.junit.runners.Parameterized.Parameters;
 
 @RunWith(Parameterized.class)
 @Category({ RegionServerTests.class, MediumTests.class })
-public class TestSecureWAL {
+public class TestAsyncSecureWAL {
 
   static {
     ((Log4JLogger)LogFactory.getLog("org.apache.hadoop.hbase.regionserver.wal"))
@@ -81,7 +81,7 @@ public class TestSecureWAL {
 
   @Parameters(name = "{index}: provider={0}")
   public static Iterable<Object[]> data() {
-    return Arrays.asList(new Object[] { "asyncfs" });
+    return Arrays.asList(new Object[][] { new Object[] { "asyncfs" } });
   }
 
   @BeforeClass

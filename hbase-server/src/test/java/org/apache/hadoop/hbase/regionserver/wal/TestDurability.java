@@ -80,7 +80,7 @@ public class TestDurability {
 
   @Parameters(name = "{index}: provider={0}")
   public static Iterable<Object[]> data() {
-    return Arrays.asList(new Object[] { "defaultProvider" });
+    return Arrays.asList(new Object[][] { new Object[] { "defaultProvider" } });
   }
 
   @BeforeClass
