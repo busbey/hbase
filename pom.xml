@@ -2489,7 +2489,7 @@
         <module>hbase-hadoop2-compat</module>
       </modules>
       <properties>
-        <hadoop.version>3.0.0-alpha2-SNAPSHOT</hadoop.version>
+        <hadoop.version>${hadoop-three.version}</hadoop.version>
         <compat.module>hbase-hadoop2-compat</compat.module>
         <assembly.file>src/main/assembly/hadoop-three-client-compat.xml</assembly.file>
       </properties>
