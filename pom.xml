@@ -1475,7 +1475,7 @@
     <maven.eclipse.version>2.10</maven.eclipse.version>
     <maven.install.version>2.5.2</maven.install.version>
     <maven.jar.version>3.0.2</maven.jar.version>
-    <maven.javadoc.version>3.0.0</maven.javadoc.version>
+    <maven.javadoc.version>3.0.1-SNAPSHOT</maven.javadoc.version>
     <maven.patch.version>1.2</maven.patch.version>
     <maven.scala.version>2.15.2</maven.scala.version>
     <maven.shade.version>3.0.0</maven.shade.version>
@@ -3489,7 +3489,7 @@
           <reportSet>
             <id>devapi</id>
             <reports>
-              <report>aggregate</report>
+              <report>aggregate-no-fork</report>
             </reports>
             <configuration>
               <destDir>devapidocs</destDir>
@@ -3532,7 +3532,7 @@
           <reportSet>
             <id>testdevapi</id>
             <reports>
-              <report>test-aggregate</report>
+              <report>test-aggregate-no-fork</report>
             </reports>
             <configuration>
               <destDir>testdevapidocs</destDir>
@@ -3577,7 +3577,7 @@
           <reportSet>
             <id>userapi</id>
             <reports>
-              <report>aggregate</report>
+              <report>aggregate-no-fork</report>
             </reports>
             <configuration>
               <doclet>
@@ -3630,7 +3630,7 @@
           <reportSet>
             <id>testuserapi</id>
             <reports>
-              <report>test-aggregate</report>
+              <report>test-aggregate-no-fork</report>
             </reports>
             <configuration>
               <doclet>
