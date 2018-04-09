@@ -85,7 +85,8 @@
           org.apache.commons.collections4,
           org.apache.commons.lang,
           org.apache.curator.shaded,
-          org.apache.htrace.shaded"/>
+          org.apache.htrace.shaded,
+          org.htrace"/>
     </module>
     <!-- Javadoc Checks
     http://checkstyle.sourceforge.net/config_javadoc.html -->

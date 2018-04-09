@@ -649,6 +649,18 @@ function hbaseanti_patchfile
     ((result=result+1))
   fi
 
+  warnings=$(${GREP} -c -E 'import org.apache.htrace.[^c]' "${patchfile}")
+  if [[ ${warnings} -gt 0 ]]; then
+    add_vote_table -1 hbaseanti "" "The patch appears use HTrace 3 classes instead of HTrace 4."
+    echo "Use of HTrace 3 in the patch"
+    {
+      printf 'Use of HTrace 3 in patchfile\n------\n'
+      ${GREP} -n -E 'import org.apache.htrace.[^c]' "${patchfile}"
+      echo "------"
+    } >>"${PATCH_DIR}/${logfile}"
+    ((result=result+1))
+  fi
+
   if [[ ${result} -gt 0 ]]; then
     return 1
   fi
