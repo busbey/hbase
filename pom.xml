@@ -1012,6 +1012,17 @@
             </execution>
           </executions>
         </plugin>
+        <!-- In the event that someone uses the dependency-check plugin, let them know about our exclusions -->
+        <plugin>
+          <groupId>org.owasp</groupId>
+          <artifactId>dependency-check-maven</artifactId>
+          <version>3.1.2</version>
+          <configuration>
+            <suppressionFiles>
+              <suppressionFile>dev-support/dependency-check-suppression.xml</suppressionFile>
+            </suppressionFiles>
+          </configuration>
+        </plugin>
       </plugins>
     </pluginManagement>
     <plugins>

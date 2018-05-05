@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+   Licensed to the Apache Software Foundation (ASF) under one or more
+   contributor license agreements.  See the NOTICE file distributed with
+   this work for additional information regarding copyright ownership.
+   The ASF licenses this file to You under the Apache License, Version 2.0
+   (the "License"); you may not use this file except in compliance with
+   the License.  You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.1.xsd">
+    <suppress>
+       <notes><![CDATA[
+       file name: hbase-hadoop-compat-3.0.0-SNAPSHOT.jar
+
+       HBase is not Hadoop
+       ]]></notes>
+       <gav regex="true">^org\.apache\.hbase:hbase-hadoop-compat:.*$</gav>
+       <cpe>cpe:/a:apache:hadoop</cpe>
+    </suppress>
+    <suppress>
+       <notes><![CDATA[
+       file name: hbase-hadoop2-compat-3.0.0-SNAPSHOT.jar
+
+       HBase is not Hadoop
+       ]]></notes>
+       <gav regex="true">^org\.apache\.hbase:hbase-hadoop2-compat:.*$</gav>
+       <cpe>cpe:/a:apache:hadoop</cpe>
+    </suppress>
+    <suppress>
+       <notes><![CDATA[
+       file name: hbase-zookeeper-3.0.0-SNAPSHOT.jar
+
+       HBase is not ZooKeeper
+       ]]></notes>
+       <gav regex="true">^org\.apache\.hbase:hbase-zookeeper:.*$</gav>
+       <cpe>cpe:/a:apache:zookeeper</cpe>
+    </suppress>
+    <suppress>
+       <notes><![CDATA[
+       file name: hbase-http-3.0.0-SNAPSHOT.jar
+
+       HBase is not the Apache HTTPD Server.
+       ]]></notes>
+       <gav regex="true">^org\.apache\.hbase:hbase-http:.*$</gav>
+       <cpe>cpe:/a:apache:http_server</cpe>
+    </suppress>
+    <suppress>
+       <notes><![CDATA[
+       file name: hbase-http-3.0.0-SNAPSHOT.jar
+
+       HBase is not the Apache HTTPD Server.
+       ]]></notes>
+       <gav regex="true">^org\.apache\.hbase:hbase-http:.*$</gav>
+       <cpe>cpe:/a:apache:apache_http_server</cpe>
+    </suppress>
+    <suppress>
+       <notes><![CDATA[
+       file name: jruby-complete-9.1.10.0.jar: readline.jar
+
+       JRuby 9.1.10.0's embedded readline is not jruby.
+       ]]></notes>
+       <gav regex="true">^rubygems:jruby-readline:.*$</gav>
+       <cpe>cpe:/a:jruby:jruby</cpe>
+    </suppress>
+    <suppress>
+       <notes><![CDATA[
+       file name: jruby-complete-9.1.10.0.jar: jopenssl.jar
+
+       JRuby 9.1.10.0's embedded openssl is not jruby.
+       ]]></notes>
+       <gav regex="true">^rubygems:jruby-openssl:.*$</gav>
+       <cpe>cpe:/a:jruby:jruby</cpe>
+    </suppress>
+    <suppress>
+       <notes><![CDATA[
+       file name: jruby-complete-9.1.10.0.jar: cparse-jruby.jar
+
+       JRuby 9.1.10.0's embedded cparse is not jruby.
+       ]]></notes>
+       <sha1>37572f403a1bd512e76e40e4dc4d6f36528fd2bf</sha1>
+       <cpe>cpe:/a:jruby:jruby</cpe>
+    </suppress>
+    <suppress>
+       <notes><![CDATA[
+       file name: log4j-1.2.17.jar
+
+       Log4j 1.2.17 is not Log4j 2.
+       ]]></notes>
+       <gav regex="true">^org\.zenframework\.z8\.dependencies\.commons:log4j-1\.2\.17:.*$</gav>
+       <cpe>cpe:/a:apache:log4j</cpe>
+    </suppress>
+    <suppress>
+       <notes><![CDATA[
+       file name: commons-crypto-1.0.0.jar
+
+       commons-crypto is not mod_ssl
+       ]]></notes>
+       <gav regex="true">^org\.apache\.commons:commons-crypto:.*$</gav>
+       <cpe>cpe:/a:apache-ssl:apache-ssl</cpe>
+    </suppress>
+    <suppress>
+       <notes><![CDATA[
+       file name: curator-recipes-4.0.0.jar
+
+       Curator Recipes is not ZooKeeper
+       ]]></notes>
+       <gav regex="true">^org\.apache\.curator:curator-recipes:.*$</gav>
+       <cpe>cpe:/a:apache:zookeeper</cpe>
+    </suppress>
+    <suppress>
+       <notes><![CDATA[
+       file name: jruby-complete-9.1.10.0.jar: jopenssl.jar
+
+       jruby-openssl doesn't share any code with the openssl project.
+       ]]></notes>
+       <gav regex="true">^rubygems:jruby-openssl:.*$</gav>
+       <cpe>cpe:/a:openssl:openssl</cpe>
+    </suppress>
+    <suppress>
+       <notes><![CDATA[
+       file name: jruby-complete-9.1.10.0.jar: jopenssl.jar
+
+       jruby-openssl doesn't share any code with the openssl project.
+       ]]></notes>
+       <gav regex="true">^rubygems:jruby-openssl:.*$</gav>
+       <cpe>cpe:/a:openssl_project:openssl</cpe>
+    </suppress>
+    <suppress>
+       <notes><![CDATA[
+       file name: libthrift-0.9.3.jar
+
+       This CVE only impacted the thrift Go client, which we don't use.
+       ]]></notes>
+       <gav regex="true">^org\.apache\.thrift:libthrift:.*$</gav>
+       <cve>CVE-2016-5397</cve>
+    </suppress>
+</suppressions>
