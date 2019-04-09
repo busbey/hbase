@@ -109,6 +109,8 @@ function personality_modules
   local testtype=$2
   local extra=""
   local MODULES=("${CHANGED_MODULES[@]}")
+  local moduleindices=${!MODULES[*]}
+  local moduleindex
 
   yetus_info "Personality: ${repostatus} ${testtype}"
 
@@ -117,6 +119,20 @@ function personality_modules
   extra="-DHBasePatchProcess"
   if [[ "${PATCH_BRANCH}" = branch-1* ]]; then
     extra="${extra} -Dhttps.protocols=TLSv1.2"
+    for moduleindex in ${moduleindices}; do
+      if [[ "${MODULES[$moduleindex]}" == hbase-tinylfu-blockcache ]]; then
+        yetus_debug "Remove the hbase-tinylfu-blockcache module on branch-1 and rely on an optional test instead"
+        unset MODULES["${moduleindex}"]
+      fi
+    done
+  fi
+
+  # ensure when we're not on branch-1 that we don't run the optional test
+  if [[ "${PATCH_BRANCH}" != branch-1* ]]; then
+    if [[ "${testtype}" = branch1_* ]]; then
+      yetus_debug "Skipped ${testtype} because we're on ${PATCH_BRANCH}."
+      return
+    fi
   fi
 
   if [[ -n "${HADOOP_PROFILE}" ]]; then
@@ -296,6 +312,76 @@ function get_include_exclude_tests_arg
 # TODO line length check? could ignore all java files since checkstyle gets them.
 
 ###################################################
+
+add_test_type branch1_tinylfu
+
+function branch1_tinylfu_initialize
+{
+  maven_add_install branch1_tinylfu
+}
+
+function branch1_tinylfu_filefilter
+{
+  local filename=$1
+  if [[ ${filename} =~ hbase-tinylfu-blockcache/ ]]; then
+    add_test branch1_tinylfu
+  fi
+}
+
+function branch1_tinylfu_rebuild
+{
+  local repostatus=$1
+  local logfile="${PATCH_DIR}/${repostatus}-branch1_tinylfu.log"
+  local jdkver
+  declare -i count
+
+  if ! verify_needed_test branch1_tinylfu; then
+    return 0
+  fi
+
+  jdkver=$(report_jvm_version "${JAVA_HOME}")
+  # This is hacky, but under our multijdk configuration jdk7 goes last to ensure non-mulitjdk tests
+  # will get bits compatible with the "defacto" jdk so if the current JDK is the last JDK, skip it.
+  # N.B. we only do this check in multijdk mode. so if you run a single jdk and that jdk is jdk7
+  # we'll run the test and it will fail.
+  if verify_multijdk_test branch1_tinylfu; then
+    if [[ "${JAVA_HOME}" = "${JDK_DIR_LIST[${#JDK_DIR_LIST[*]} - 1 ]}" ]]; then
+      yetus_info "Skipping last JDK in multijdk configuration assuming it's jdk7. it reports as ${jdkver}"
+      return 0
+    fi
+  else
+    yetus_debug "Running with branch1_tinylfu not in multijdk mode. You should be using jdk8 for this. JAVA_HOME reports as ${jdkver}"
+  fi
+
+  if [[ ! -f hbase-tinylfu-blockcache/pom.xml ]]; then
+    yetus_debug "module hbase-tinylfu-blockcache doesn't exist, so skipping test."
+    touch "${logfile}"
+    return 0
+  fi
+
+  big_console_header "Checking hbase-tinylfu-blockcache module (should be branch-1 and jdk8 only)"
+  start_clock
+
+
+  # disabled because "maven_executor" needs to return both command and args
+  # shellcheck disable=2046
+  echo_and_redirect "${logfile}" \
+    $(maven_executor) clean verify -fae --batch-mode \
+      -pl hbase-tinylfu-blockcache \
+      -DHBasePatchProcess
+
+  # TODO we should set up doing a diff as we do everywhere else.
+  count=$(${GREP} -c '\[ERROR\]' "${logfile}")
+  if [[ ${count} -gt 0 ]]; then
+    add_vote_table -1 branch1_tinylfu "${repostatus} has ${count} errors when building the jdk8-only branch-1 module for hbase-tinylfu-blockcache."
+    add_footer_table branch1_tinylfu "@@BASE@@/${repostatus}-branch1_tinylfu.txt"
+    return 1
+  fi
+
+  add_vote_table +1 branch1_tinylfu "${repostatus} has no errors when building the jdk8-only branch-1 module for hbase-tinylfu-blockcache."
+  return 0
+}
+
 
 add_test_type refguide
 
