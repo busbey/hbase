@@ -18,8 +18,9 @@
  */
 package org.apache.hadoop.hbase.io.hfile;
 
+import static java.util.Objects.requireNonNull;
+
 import java.lang.ref.WeakReference;
-import java.nio.ByteBuffer;
 import java.util.EnumMap;
 import java.util.Iterator;
 import java.util.List;
@@ -98,7 +99,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
  */
 @InterfaceAudience.Private
 @JsonIgnoreProperties({"encodingCountsForTest"})
-public class LruBlockCache implements ResizableBlockCache, HeapSize {
+public class LruBlockCache implements FirstLevelBlockCache {
 
   private static final Log LOG = LogFactory.getLog(LruBlockCache.class);
 
@@ -247,8 +248,7 @@ public class LruBlockCache implements ResizableBlockCache, HeapSize {
         DEFAULT_MEMORY_FACTOR,
         DEFAULT_HARD_CAPACITY_LIMIT_FACTOR,
         false,
-        DEFAULT_MAX_BLOCK_SIZE
-        );
+        DEFAULT_MAX_BLOCK_SIZE);
   }
 
   public LruBlockCache(long maxSize, long blockSize, boolean evictionThread, Configuration conf) {
@@ -263,8 +263,7 @@ public class LruBlockCache implements ResizableBlockCache, HeapSize {
         conf.getFloat(LRU_MEMORY_PERCENTAGE_CONFIG_NAME, DEFAULT_MEMORY_FACTOR),
         conf.getFloat(LRU_HARD_CAPACITY_LIMIT_FACTOR_CONFIG_NAME, DEFAULT_HARD_CAPACITY_LIMIT_FACTOR),
         conf.getBoolean(LRU_IN_MEMORY_FORCE_MODE_CONFIG_NAME, DEFAULT_IN_MEMORY_FORCE_MODE),
-        conf.getLong(LRU_MAX_BLOCK_SIZE, DEFAULT_MAX_BLOCK_SIZE)
-        );
+        conf.getLong(LRU_MAX_BLOCK_SIZE, DEFAULT_MAX_BLOCK_SIZE));
   }
 
   public LruBlockCache(long maxSize, long blockSize, Configuration conf) {
@@ -330,6 +329,14 @@ public class LruBlockCache implements ResizableBlockCache, HeapSize {
     // every five minutes.
     this.scheduleThreadPool.scheduleAtFixedRate(new StatisticsThread(this),
         statThreadPeriod, statThreadPeriod, TimeUnit.SECONDS);
+  }
+
+  @Override
+  public void setVictimCache(BlockCache victimCache) {
+    if (victimHandler != null) {
+      throw new IllegalArgumentException("The victim cache has already been set");
+    }
+    victimHandler = requireNonNull(victimCache);
   }
 
   @Override
@@ -498,6 +505,7 @@ public class LruBlockCache implements ResizableBlockCache, HeapSize {
    * @param cacheKey
    * @return true if contains the block
    */
+  @Override
   public boolean containsBlock(BlockCacheKey cacheKey) {
     return map.containsKey(cacheKey);
   }
@@ -1140,7 +1148,7 @@ public class LruBlockCache implements ResizableBlockCache, HeapSize {
     Map<BlockType, Integer> counts =
         new EnumMap<BlockType, Integer>(BlockType.class);
     for (LruCachedBlock cb : map.values()) {
-      BlockType blockType = ((Cacheable)cb.getBuffer()).getBlockType();
+      BlockType blockType = cb.getBuffer().getBlockType();
       Integer count = counts.get(blockType);
       counts.put(blockType, (count == null ? 0 : count) + 1);
     }
@@ -1158,11 +1166,6 @@ public class LruBlockCache implements ResizableBlockCache, HeapSize {
       counts.put(encoding, (count == null ? 0 : count) + 1);
     }
     return counts;
-  }
-
-  public void setVictimCache(BlockCache handler) {
-    assert victimHandler == null;
-    victimHandler = handler;
   }
 
   @VisibleForTesting
