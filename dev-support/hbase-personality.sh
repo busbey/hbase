@@ -117,6 +117,12 @@ function personality_modules
   extra="-DHBasePatchProcess"
   if [[ "${PATCH_BRANCH}" = branch-1* ]]; then
     extra="${extra} -Dhttps.protocols=TLSv1.2"
+    # on branches-1, the hbase-tinylfu-blockcache only works for jdk8. so if it changes
+    # run whatever test is requested at the top level so that maven can handle only including
+    # the module when the correct jdk is around.
+    if [[ "${MODULES[*]}" =~ hbase-tinylfu-blockcache ]]; then
+      MODULES=(.)
+    fi
   fi
 
   if [[ -n "${HADOOP_PROFILE}" ]]; then
