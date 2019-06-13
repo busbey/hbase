@@ -38,6 +38,7 @@
     <!-- To Run Tests with a particular Xmx Value use -Dfailsafe.Xmx=XXXg -->
     <failsafe.Xmx>4g</failsafe.Xmx>
     <!-- To run a single integration test, use -Dit.test=IntegrationTestXXX -->
+    <hbase.it.timeout>1800</hbase.it.timeout>
   </properties>
 
   <build>
@@ -171,7 +172,7 @@
             <forkMode>always</forkMode>
             <!-- TODO: failsafe does timeout, but verify does not fail the build because of the timeout.
                  I believe it is a failsafe bug, we may consider using surefire -->
-            <forkedProcessTimeoutInSeconds>1800</forkedProcessTimeoutInSeconds>
+            <forkedProcessTimeoutInSeconds>${hbase.it.timeout}</forkedProcessTimeoutInSeconds>
             <argLine>-enableassertions -Xmx${failsafe.Xmx} -XX:MaxPermSize=368m
                 -Djava.security.egd=file:/dev/./urandom -XX:+CMSClassUnloadingEnabled
                 -verbose:gc -XX:+PrintCommandLineFlags  -XX:+PrintFlagsFinal</argLine>
